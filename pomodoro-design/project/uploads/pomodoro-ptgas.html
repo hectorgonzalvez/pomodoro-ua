@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FocusPTGAS · Comptador de Treball</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #F5F0E8;
+    --surface: #FDFAF4;
+    --surface2: #EDE8DE;
+    --border: #D4C9B0;
+    --accent: #2D5016;
+    --accent2: #7A3B19;
+    --accent3: #1A4A6B;
+    --text: #1C1A14;
+    --text2: #6B6555;
+    --text3: #A09880;
+    --green: #3A7D2C;
+    --orange: #D4641A;
+    --blue: #1A5C8A;
+    --red: #B03020;
+    --shadow: 0 2px 12px rgba(28,26,20,0.10);
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--accent);
+    color: #F5F0E8;
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  header .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.5rem;
+    letter-spacing: -0.5px;
+  }
+  header .logo span { color: #A8D87F; }
+  header nav { display: flex; gap: 4px; }
+  header nav button {
+    background: transparent;
+    border: 1.5px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.85);
+    padding: 7px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  header nav button:hover, header nav button.active {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border-color: rgba(255,255,255,0.5);
+  }
+  header nav button.active {
+    background: rgba(255,255,255,0.2);
+    border-color: #A8D87F;
+    color: #A8D87F;
+  }
+
+  /* ── LAYOUT ── */
+  main { flex: 1; display: none; }
+  main.visible { display: block; }
+
+  /* ── TIMER VIEW ── */
+  #view-timer {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+
+  .session-bar {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .session-bar label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text2);
+    white-space: nowrap;
+  }
+  .session-bar select {
+    flex: 1;
+    min-width: 200px;
+    padding: 9px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    color: var(--text);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B6555' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .session-bar select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .btn-new-topic {
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    color: var(--text2);
+    padding: 9px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .btn-new-topic:hover { background: var(--border); color: var(--text); }
+
+  /* TIMER CARD */
+  .timer-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 48px 40px 40px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .timer-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--green), var(--accent));
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 1s linear;
+  }
+  .timer-card.running::before { transform: scaleX(var(--progress, 0)); }
+
+  .phase-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 24px;
+    background: #E8F5E0;
+    color: var(--green);
+    border: 1.5px solid #C5E0AC;
+  }
+  .phase-badge.break { background: #FFF3E0; color: var(--orange); border-color: #F5C88A; }
+  .phase-badge.paused { background: var(--surface2); color: var(--text2); border-color: var(--border); }
+
+  .phase-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: blink 1.2s ease-in-out infinite;
+  }
+  .phase-badge:not(.paused) .phase-dot { animation: blink 1.2s ease-in-out infinite; }
+  .phase-badge.paused .phase-dot { animation: none; opacity: 0.4; }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .current-topic {
+    font-size: 0.95rem;
+    color: var(--text2);
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+  .current-topic strong { color: var(--text); }
+
+  .time-display {
+    font-family: 'DM Mono', monospace;
+    font-size: 5.5rem;
+    font-weight: 300;
+    color: var(--text);
+    letter-spacing: -2px;
+    line-height: 1;
+    margin: 16px 0 32px;
+    transition: color 0.3s;
+  }
+  .time-display.warning { color: var(--orange); }
+  .time-display.critical { color: var(--red); animation: pulse-red 0.8s ease-in-out infinite; }
+
+  @keyframes pulse-red { 0%,100%{opacity:1} 50%{opacity:0.7} }
+
+  .pomodoros-row {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .pom-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: transparent;
+    transition: all 0.3s;
+  }
+  .pom-dot.done { background: var(--green); border-color: var(--green); }
+  .pom-dot.current { background: var(--orange); border-color: var(--orange); animation: blink 1s infinite; }
+
+  /* BUTTONS */
+  .timer-controls {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .btn-primary {
+    padding: 14px 36px;
+    background: var(--accent);
+    color: #F5F0E8;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 3px 10px rgba(45,80,22,0.25);
+  }
+  .btn-primary:hover { background: #3D6B1F; transform: translateY(-1px); box-shadow: 0 5px 14px rgba(45,80,22,0.3); }
+  .btn-secondary {
+    padding: 14px 28px;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-danger {
+    padding: 14px 28px;
+    background: #FDF0EE;
+    color: var(--red);
+    border: 1.5px solid #F5C0B8;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-danger:hover { background: #FAE0DC; }
+
+  /* MOVEMENT REMINDER */
+  .movement-card {
+    margin-top: 24px;
+    background: #EEF7FF;
+    border: 1.5px solid #B8D8F0;
+    border-radius: var(--radius);
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    animation: slideUp 0.4s ease;
+  }
+  @keyframes slideUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+  .movement-icon { font-size: 2rem; }
+  .movement-text h4 { font-size: 0.95rem; font-weight: 600; color: var(--blue); margin-bottom: 3px; }
+  .movement-text p { font-size: 0.85rem; color: var(--text2); }
+  .btn-movement-done {
+    margin-left: auto;
+    padding: 8px 18px;
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    white-space: nowrap;
+    transition: background 0.2s;
+  }
+  .btn-movement-done:hover { background: #1A4A6B; }
+
+  /* SETTINGS ROW */
+  .settings-row {
+    margin-top: 20px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .setting-item { display: flex; align-items: center; gap: 10px; }
+  .setting-item label { font-size: 0.82rem; color: var(--text2); font-weight: 500; }
+  .setting-item input[type=number] {
+    width: 68px;
+    padding: 6px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--text);
+    text-align: center;
+  }
+  .setting-item input:focus { outline: 2px solid var(--accent); }
+  .setting-hint { font-size: 0.78rem; color: var(--text3); }
+
+  /* ── TOPICS VIEW ── */
+  #view-topics {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+  .view-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.8rem;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .view-subtitle { color: var(--text2); font-size: 0.9rem; margin-bottom: 28px; }
+
+  .add-topic-form {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .add-topic-form input {
+    flex: 1;
+    min-width: 200px;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+  .add-topic-form input:focus { outline: 2px solid var(--accent); }
+  .color-picker-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .color-opt {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: 2.5px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .color-opt:hover { transform: scale(1.15); }
+  .color-opt.selected { border-color: var(--text); transform: scale(1.1); }
+
+  .topics-list { display: flex; flex-direction: column; gap: 10px; }
+  .topic-item {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .topic-color-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+  .topic-name { font-weight: 500; flex: 1; }
+  .topic-sessions { font-size: 0.82rem; color: var(--text2); font-family: 'DM Mono', monospace; }
+  .topic-del {
+    background: none;
+    border: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+  .topic-del:hover { color: var(--red); background: #FDF0EE; }
+
+  /* ── STATS VIEW ── */
+  #view-stats {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+  .stats-filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .stats-filters select {
+    padding: 9px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    color: var(--text);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B6555' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+    cursor: pointer;
+  }
+  .btn-export {
+    margin-left: auto;
+    padding: 9px 20px;
+    background: var(--accent3);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-export:hover { background: #1A4A6B; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 18px;
+    text-align: center;
+  }
+  .stat-card .stat-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 2.2rem;
+    font-weight: 400;
+    color: var(--text);
+    line-height: 1;
+  }
+  .stat-card .stat-lbl {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+    margin-top: 6px;
+    font-weight: 600;
+  }
+
+  .chart-section {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .chart-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 18px;
+  }
+  .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+  .bar-row { display: flex; align-items: center; gap: 12px; }
+  .bar-label { font-size: 0.82rem; color: var(--text2); width: 130px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { flex: 1; background: var(--surface2); border-radius: 4px; height: 22px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1); display: flex; align-items: center; padding-left: 8px; }
+  .bar-val { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--text2); width: 60px; text-align: right; flex-shrink: 0; }
+
+  .week-grid { display: flex; gap: 6px; flex-wrap: wrap; }
+  .day-col { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .day-name { font-size: 0.7rem; color: var(--text3); font-weight: 600; text-transform: uppercase; }
+  .day-block {
+    width: 38px; height: 38px;
+    border-radius: 6px;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text3);
+    transition: all 0.2s;
+    cursor: default;
+    position: relative;
+  }
+  .day-block:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .sessions-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  .sessions-table th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+    border-bottom: 1.5px solid var(--border);
+    font-weight: 600;
+  }
+  .sessions-table td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--surface2);
+    color: var(--text);
+  }
+  .sessions-table tr:last-child td { border-bottom: none; }
+  .sessions-table tr:hover td { background: var(--surface2); }
+  .topic-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+  }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(28,26,20,0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    animation: modalIn 0.25s ease;
+  }
+  @keyframes modalIn { from{opacity:0;transform:scale(0.95)translateY(10px)} to{opacity:1;transform:none} }
+  .modal h2 { font-family: 'DM Serif Display', serif; font-size: 1.4rem; margin-bottom: 18px; }
+  .modal p { color: var(--text2); line-height: 1.6; margin-bottom: 20px; }
+  .modal .emoji-big { font-size: 2.5rem; margin-bottom: 12px; display: block; text-align: center; }
+  .modal-btns { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
+  /* ── EMPTY STATES ── */
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text3);
+  }
+  .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty-state p { font-size: 0.9rem; }
+
+  /* ── NOTIFICATION ── */
+  .notification {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--text);
+    color: var(--bg);
+    padding: 14px 20px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 200;
+    max-width: 320px;
+  }
+  .notification.show { transform: translateY(0); opacity: 1; }
+
+  @media(max-width: 600px) {
+    header { padding: 12px 16px; }
+    header nav button { padding: 6px 12px; font-size: 0.78rem; }
+    .time-display { font-size: 4rem; }
+    #view-timer, #view-topics, #view-stats { padding: 24px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Focus<span>PTGAS</span></div>
+  <nav>
+    <button class="active" onclick="showView('timer')" id="nav-timer">⏱ Cronòmetre</button>
+    <button onclick="showView('topics')" id="nav-topics">🏷 Temes</button>
+    <button onclick="showView('stats')" id="nav-stats">📊 Estadístiques</button>
+  </nav>
+</header>
+
+<!-- ══════════════ TIMER VIEW ══════════════ -->
+<main id="view-timer" class="visible">
+  <div id="view-timer-content">
+    <div class="session-bar">
+      <label>Tema de treball</label>
+      <select id="topic-select">
+        <option value="">— Sense tema —</option>
+      </select>
+      <button class="btn-new-topic" onclick="showView('topics')">+ Nou tema</button>
+    </div>
+
+    <div class="timer-card" id="timer-card">
+      <div class="phase-badge" id="phase-badge">
+        <span class="phase-dot"></span>
+        <span id="phase-label">Preparat</span>
+      </div>
+      <div class="current-topic" id="current-topic-display" style="display:none">
+        Tema: <strong id="active-topic-name">—</strong>
+      </div>
+      <div class="time-display" id="time-display">25:00</div>
+      <div class="pomodoros-row" id="pomodoros-row"></div>
+      <div class="timer-controls" id="timer-controls">
+        <button class="btn-primary" id="btn-start" onclick="startTimer()">▶ Iniciar sessió</button>
+      </div>
+    </div>
+
+    <div id="movement-reminder" style="display:none"></div>
+
+    <div class="settings-row">
+      <div class="setting-item">
+        <label>🍅 Treball (min)</label>
+        <input type="number" id="set-work" value="25" min="1" max="90" onchange="applySettings()">
+      </div>
+      <div class="setting-item">
+        <label>☕ Pausa curta (min)</label>
+        <input type="number" id="set-short" value="5" min="1" max="30" onchange="applySettings()">
+      </div>
+      <div class="setting-item">
+        <label>🌿 Pausa llarga (min)</label>
+        <input type="number" id="set-long" value="15" min="5" max="60" onchange="applySettings()">
+      </div>
+      <div class="setting-item">
+        <label>Pomodoros fins pausa llarga</label>
+        <input type="number" id="set-long-after" value="4" min="2" max="8" onchange="applySettings()">
+      </div>
+      <span class="setting-hint">Els canvis s'apliquen a la propera sessió</span>
+    </div>
+  </div>
+</main>
+
+<!-- ══════════════ TOPICS VIEW ══════════════ -->
+<main id="view-topics">
+  <div>
+    <h1 class="view-title">Gestió de Temes</h1>
+    <p class="view-subtitle">Classifica les teves sessions de treball per àrees temàtiques.</p>
+
+    <div class="add-topic-form">
+      <input type="text" id="new-topic-name" placeholder="Nom del tema (p.ex. Gestió Acadèmica, SAP, Atenció usuaris…)" maxlength="50">
+      <div class="color-picker-row" id="color-picker"></div>
+      <button class="btn-primary" onclick="addTopic()" style="padding:10px 22px;font-size:0.9rem">Afegir tema</button>
+    </div>
+
+    <div class="topics-list" id="topics-list"></div>
+  </div>
+</main>
+
+<!-- ══════════════ STATS VIEW ══════════════ -->
+<main id="view-stats">
+  <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:12px">
+      <h1 class="view-title" style="margin:0">Estadístiques</h1>
+      <button class="btn-export" onclick="exportCSV()">⬇ Exportar CSV</button>
+    </div>
+    <p class="view-subtitle">Resum del teu temps de concentració i les teves sessions.</p>
+
+    <div class="stats-filters">
+      <select id="filter-period" onchange="renderStats()">
+        <option value="all">Tot el temps</option>
+        <option value="week" selected>Aquesta setmana</option>
+        <option value="month">Aquest mes</option>
+        <option value="lastweek">Setmana passada</option>
+      </select>
+      <select id="filter-topic" onchange="renderStats()">
+        <option value="">Tots els temes</option>
+      </select>
+    </div>
+
+    <div class="stats-grid" id="stats-grid"></div>
+
+    <div class="chart-section" id="topic-chart-section">
+      <div class="chart-title">Minuts per tema</div>
+      <div class="bar-chart" id="topic-chart"></div>
+    </div>
+
+    <div class="chart-section" id="week-chart-section">
+      <div class="chart-title">Activitat de les últimes 8 setmanes</div>
+      <div class="week-grid" id="week-grid"></div>
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-title">Sessions recents</div>
+      <div style="overflow-x:auto">
+        <table class="sessions-table" id="sessions-table">
+          <thead><tr><th>Data</th><th>Tema</th><th>Durada</th><th>Tipus</th><th>Pomodoros</th></tr></thead>
+          <tbody id="sessions-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ══════════════ MODAL: Complete session ══════════════ -->
+<div class="modal-overlay" id="modal-finish">
+  <div class="modal">
+    <span class="emoji-big">🎉</span>
+    <h2>Sessió completada!</h2>
+    <p id="modal-finish-text">Has completat una sessió de treball. La sessió s'ha registrat correctament.</p>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modal-finish');resetTimer()">Tancar</button>
+      <button class="btn-primary" onclick="closeModal('modal-finish');startTimer()">Nova sessió</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: New topic quick ══════════════ -->
+<div class="modal-overlay" id="modal-newtopic">
+  <div class="modal">
+    <h2>Crea un tema ràpid</h2>
+    <p>Afegeix un tema de treball per a classificar les teves sessions.</p>
+    <input type="text" id="quick-topic-name" placeholder="Nom del tema…" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.95rem;margin-bottom:16px">
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modal-newtopic')">Cancel·lar</button>
+      <button class="btn-primary" onclick="addTopicFromModal()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ NOTIFICATION ══════════════ -->
+<div class="notification" id="notification"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  DATA LAYER  (localStorage)
+// ══════════════════════════════════════════
+const KEY_TOPICS   = 'ptgas_topics';
+const KEY_SESSIONS = 'ptgas_sessions';
+const KEY_SETTINGS = 'ptgas_settings';
+
+function loadTopics() { return JSON.parse(localStorage.getItem(KEY_TOPICS)||'[]'); }
+function saveTopics(t) { localStorage.setItem(KEY_TOPICS, JSON.stringify(t)); }
+function loadSessions() { return JSON.parse(localStorage.getItem(KEY_SESSIONS)||'[]'); }
+function saveSessions(s) { localStorage.setItem(KEY_SESSIONS, JSON.stringify(s)); }
+function loadSettings() {
+  return Object.assign({ work:25, short:5, long:15, longAfter:4 },
+    JSON.parse(localStorage.getItem(KEY_SETTINGS)||'{}'));
+}
+function saveSettings(s) { localStorage.setItem(KEY_SETTINGS, JSON.stringify(s)); }
+
+function saveSession(session) {
+  const sessions = loadSessions();
+  sessions.unshift(session);
+  saveSessions(sessions);
+}
+
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+const COLORS = ['#3A7D2C','#D4641A','#1A5C8A','#8B3A9B','#B03020','#C49A1A','#2D5016','#6B3A2C'];
+let selectedColor = COLORS[0];
+let settings = loadSettings();
+
+let timerState = 'idle'; // idle | running | paused | break
+let intervalId = null;
+let secondsLeft = 0;
+let totalSeconds = 0;
+let phase = 'work'; // work | break
+let pomodorosThisSession = 0;
+let sessionStartTime = null;
+let sessionTopic = null;
+let sessionTotalWork = 0; // accumulated work seconds
+let workSecondsAccum = 0;
+let breakCount = 0;
+
+// ══════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════
+function showView(v) {
+  ['timer','topics','stats'].forEach(name => {
+    document.getElementById('view-'+name).classList.remove('visible');
+    document.getElementById('nav-'+name).classList.remove('active');
+  });
+  document.getElementById('view-'+v).classList.add('visible');
+  document.getElementById('nav-'+v).classList.add('active');
+  if (v === 'topics') renderTopics();
+  if (v === 'stats')  renderStats();
+  if (v === 'timer')  renderTopicSelect();
+}
+
+// ══════════════════════════════════════════
+//  SETTINGS
+// ══════════════════════════════════════════
+function applySettings() {
+  settings.work      = +document.getElementById('set-work').value || 25;
+  settings.short     = +document.getElementById('set-short').value || 5;
+  settings.long      = +document.getElementById('set-long').value || 15;
+  settings.longAfter = +document.getElementById('set-long-after').value || 4;
+  saveSettings(settings);
+  if (timerState === 'idle') resetTimerDisplay();
+}
+
+function loadSettingsUI() {
+  document.getElementById('set-work').value      = settings.work;
+  document.getElementById('set-short').value     = settings.short;
+  document.getElementById('set-long').value      = settings.long;
+  document.getElementById('set-long-after').value = settings.longAfter;
+}
+
+// ══════════════════════════════════════════
+//  TIMER
+// ══════════════════════════════════════════
+function resetTimerDisplay() {
+  const mins = String(settings.work).padStart(2,'0');
+  document.getElementById('time-display').textContent = `${mins}:00`;
+  document.getElementById('time-display').className = 'time-display';
+}
+
+function startTimer() {
+  if (timerState === 'idle' || timerState === 'paused') {
+    if (timerState === 'idle') {
+      // New session
+      phase = 'work';
+      pomodorosThisSession = 0;
+      sessionStartTime = new Date();
+      workSecondsAccum = 0;
+      breakCount = 0;
+      const sel = document.getElementById('topic-select');
+      sessionTopic = sel.value ? { id: sel.value, name: sel.options[sel.selectedIndex].text } : null;
+      secondsLeft = settings.work * 60;
+      totalSeconds = secondsLeft;
+      updateCurrentTopicDisplay();
+    }
+    timerState = 'running';
+    document.getElementById('timer-card').classList.add('running');
+    updatePhaseUI();
+    renderControls();
+    intervalId = setInterval(tick, 1000);
+  }
+}
+
+function tick() {
+  secondsLeft--;
+  if (secondsLeft < 0) {
+    phaseComplete();
+    return;
+  }
+  renderTimeDisplay();
+  updateProgressBar();
+}
+
+function phaseComplete() {
+  clearInterval(intervalId);
+  if (phase === 'work') {
+    workSecondsAccum += totalSeconds;
+    pomodorosThisSession++;
+    renderPomodorosDots();
+    const isLongBreak = pomodorosThisSession % settings.longAfter === 0;
+    showMovementReminder(isLongBreak);
+    breakCount++;
+    if (isLongBreak) {
+      // Long break
+      notify('🌿 Pausa llarga! Has completat '+settings.longAfter+' pomodoros. Descansa bé!');
+      phase = 'break';
+      secondsLeft = settings.long * 60;
+      totalSeconds = secondsLeft;
+    } else {
+      notify('☕ Pausa curta! Mou el cos uns minuts.');
+      phase = 'break';
+      secondsLeft = settings.short * 60;
+      totalSeconds = secondsLeft;
+    }
+    updatePhaseUI();
+    renderTimeDisplay();
+    intervalId = setInterval(tick, 1000);
+  } else {
+    // Break complete → back to work
+    phase = 'work';
+    secondsLeft = settings.work * 60;
+    totalSeconds = secondsLeft;
+    hideMovementReminder();
+    notify('🍅 Hora de treballar! Nova ronda de concentració.');
+    updatePhaseUI();
+    renderTimeDisplay();
+    intervalId = setInterval(tick, 1000);
+  }
+}
+
+function pauseTimer() {
+  clearInterval(intervalId);
+  timerState = 'paused';
+  if (phase === 'work') workSecondsAccum += (totalSeconds - secondsLeft);
+  totalSeconds = secondsLeft; // adjust reference
+  document.getElementById('timer-card').classList.remove('running');
+  updatePhaseUI();
+  renderControls();
+  notify('⏸ Sessió en pausa.');
+}
+
+function finishTimer() {
+  clearInterval(intervalId);
+  if (phase === 'work') workSecondsAccum += (totalSeconds - secondsLeft);
+  const totalWorkMin = Math.round(workSecondsAccum / 60);
+  // Save session
+  const session = {
+    id: Date.now(),
+    date: sessionStartTime ? sessionStartTime.toISOString() : new Date().toISOString(),
+    topicId: sessionTopic ? sessionTopic.id : null,
+    topicName: sessionTopic ? sessionTopic.name : 'Sense tema',
+    pomodoros: pomodorosThisSession,
+    workMinutes: totalWorkMin,
+    breakCount: breakCount,
+    endDate: new Date().toISOString()
+  };
+  saveSession(session);
+  // Update topic session count
+  if (sessionTopic) {
+    const topics = loadTopics();
+    const t = topics.find(x => x.id === sessionTopic.id);
+    if (t) { t.sessions = (t.sessions||0)+1; t.minutes = (t.minutes||0)+totalWorkMin; saveTopics(topics); }
+  }
+  document.getElementById('modal-finish-text').textContent =
+    `Has registrat ${pomodorosThisSession} pomodoro${pomodorosThisSession!==1?'s':''} i ${totalWorkMin} minuts de feina concentrada.`
+    + (sessionTopic ? ` Tema: ${sessionTopic.name}.` : '');
+  openModal('modal-finish');
+  resetTimer();
+}
+
+function resetTimer() {
+  clearInterval(intervalId);
+  timerState = 'idle';
+  phase = 'work';
+  pomodorosThisSession = 0;
+  workSecondsAccum = 0;
+  breakCount = 0;
+  sessionStartTime = null;
+  document.getElementById('timer-card').classList.remove('running');
+  document.getElementById('current-topic-display').style.display = 'none';
+  hideMovementReminder();
+  renderTimerDisplay_idle();
+  renderControls();
+  renderPomodorosDots();
+  updatePhaseUI_idle();
+}
+
+function renderTimerDisplay_idle() {
+  const m = String(settings.work).padStart(2,'0');
+  const el = document.getElementById('time-display');
+  el.textContent = `${m}:00`;
+  el.className = 'time-display';
+  document.getElementById('timer-card').style.setProperty('--progress', 0);
+}
+
+function renderTimeDisplay() {
+  const m = Math.floor(secondsLeft / 60);
+  const s = secondsLeft % 60;
+  const el = document.getElementById('time-display');
+  el.textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  el.className = 'time-display';
+  const pct = secondsLeft / totalSeconds;
+  if (phase === 'work') {
+    if (pct < 0.15) el.classList.add('critical');
+    else if (pct < 0.25) el.classList.add('warning');
+  }
+}
+
+function updateProgressBar() {
+  const prog = 1 - (secondsLeft / totalSeconds);
+  document.getElementById('timer-card').style.setProperty('--progress', prog);
+}
+
+function updatePhaseUI() {
+  const badge = document.getElementById('phase-badge');
+  const lbl   = document.getElementById('phase-label');
+  if (timerState === 'paused') {
+    badge.className = 'phase-badge paused';
+    lbl.textContent = 'En pausa';
+  } else if (phase === 'break') {
+    badge.className = 'phase-badge break';
+    lbl.textContent = 'Descans';
+  } else {
+    badge.className = 'phase-badge';
+    lbl.textContent = 'Treballant';
+  }
+}
+function updatePhaseUI_idle() {
+  const badge = document.getElementById('phase-badge');
+  const lbl   = document.getElementById('phase-label');
+  badge.className = 'phase-badge paused';
+  lbl.textContent = 'Preparat';
+}
+
+function renderControls() {
+  const ctrl = document.getElementById('timer-controls');
+  if (timerState === 'idle') {
+    ctrl.innerHTML = `<button class="btn-primary" onclick="startTimer()">▶ Iniciar sessió</button>`;
+  } else if (timerState === 'running') {
+    ctrl.innerHTML = `
+      <button class="btn-secondary" onclick="pauseTimer()">⏸ Pausa</button>
+      <button class="btn-danger" onclick="finishTimer()">⏹ Acabar sessió</button>`;
+  } else {
+    ctrl.innerHTML = `
+      <button class="btn-primary" onclick="startTimer()">▶ Reprendre</button>
+      <button class="btn-danger" onclick="finishTimer()">⏹ Acabar sessió</button>`;
+  }
+}
+
+function renderPomodorosDots() {
+  const row = document.getElementById('pomodoros-row');
+  const total = settings.longAfter;
+  let html = '';
+  for (let i = 0; i < total; i++) {
+    if (i < pomodorosThisSession % total || (pomodorosThisSession >= total && pomodorosThisSession % total === 0)) {
+      html += `<div class="pom-dot done" title="Pomodoro completat"></div>`;
+    } else if (i === pomodorosThisSession % total && timerState !== 'idle') {
+      html += `<div class="pom-dot current"></div>`;
+    } else {
+      html += `<div class="pom-dot"></div>`;
+    }
+  }
+  row.innerHTML = html;
+}
+
+function updateCurrentTopicDisplay() {
+  const el = document.getElementById('current-topic-display');
+  if (sessionTopic) {
+    document.getElementById('active-topic-name').textContent = sessionTopic.name;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// ══════════════════════════════════════════
+//  MOVEMENT REMINDERS
+// ══════════════════════════════════════════
+const MOVEMENTS = [
+  { icon:'🧘', title:'Estira el coll i les espatlles', desc:'Gira el cap lentament d\'esquerra a dreta 5 vegades. Eleva les espatlles cap amunt i relaxa-les.' },
+  { icon:'🚶', title:'Camina una mica', desc:'Aprofita per anar a buscar aigua, pujar o baixar unes escales o fer un volt curt pel passadís.' },
+  { icon:'💪', title:'Estira la part baixa de l\'esquena', desc:'Assegut, apropa els genolls al pit alternativament. Repeteix 10 vegades per costat.' },
+  { icon:'👀', title:'Descansa la vista', desc:'Mira per la finestra o un punt llunyà durant 20 segons. Parpella unes quantes vegades.' },
+  { icon:'🏃', title:'Puja i baixa escales', desc:'Si tens escales a l\'edifici, puja 2-3 plantes. Activa la circulació i desconnectes mentalment.' },
+  { icon:'🤸', title:'Estira els canells i les mans', desc:'Obri i tanca els punys 10 vegades. Gira els canells en tots dos sentits. Prevé tensions.' },
+  { icon:'🌬️', title:'Exercici de respiració', desc:'Inspira profundament 4 segon, aguanta 4, expira 6. Repeteix 5 vegades. Redueix l\'estrès.' },
+  { icon:'🧍', title:'Posa\'t dret uns minuts', desc:'Treballa de peu si pots, o simplement alça\'t i estira les cames. El sedentarisme perjudica la salut.' },
+];
+
+function showMovementReminder(isLong) {
+  const m = MOVEMENTS[Math.floor(Math.random() * MOVEMENTS.length)];
+  const box = document.getElementById('movement-reminder');
+  const duration = isLong ? `${settings.long} minuts` : `${settings.short} minuts`;
+  box.innerHTML = `
+    <div class="movement-card">
+      <div class="movement-icon">${m.icon}</div>
+      <div class="movement-text">
+        <h4>${m.title} · Tens ${duration}</h4>
+        <p>${m.desc}</p>
+      </div>
+      <button class="btn-movement-done" onclick="hideMovementReminder()">✓ Fet!</button>
+    </div>`;
+  box.style.display = 'block';
+}
+function hideMovementReminder() {
+  document.getElementById('movement-reminder').style.display = 'none';
+  document.getElementById('movement-reminder').innerHTML = '';
+}
+
+// ══════════════════════════════════════════
+//  TOPIC SELECT on Timer
+// ══════════════════════════════════════════
+function renderTopicSelect() {
+  const sel = document.getElementById('topic-select');
+  const topics = loadTopics();
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Sense tema —</option>';
+  topics.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id; opt.textContent = t.name;
+    if (t.id === cur) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  // Also update filter in stats
+  const ft = document.getElementById('filter-topic');
+  if (ft) {
+    ft.innerHTML = '<option value="">Tots els temes</option>';
+    topics.forEach(t => { const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; ft.appendChild(o); });
+  }
+}
+
+// ══════════════════════════════════════════
+//  TOPICS MANAGEMENT
+// ══════════════════════════════════════════
+function renderColorPicker() {
+  const cp = document.getElementById('color-picker');
+  cp.innerHTML = COLORS.map(c =>
+    `<div class="color-opt${c===selectedColor?' selected':''}" style="background:${c}" onclick="selectColor('${c}')" title="${c}"></div>`
+  ).join('');
+}
+
+function selectColor(c) {
+  selectedColor = c;
+  renderColorPicker();
+}
+
+function addTopic() {
+  const input = document.getElementById('new-topic-name');
+  const name = input.value.trim();
+  if (!name) { notify('Escriu un nom per al tema.'); return; }
+  const topics = loadTopics();
+  if (topics.find(t => t.name.toLowerCase() === name.toLowerCase())) {
+    notify('Ja existeix un tema amb aquest nom.'); return;
+  }
+  topics.push({ id: String(Date.now()), name, color: selectedColor, sessions: 0, minutes: 0 });
+  saveTopics(topics);
+  input.value = '';
+  renderTopics();
+  renderTopicSelect();
+  notify('✅ Tema creat: ' + name);
+}
+
+function addTopicFromModal() {
+  const input = document.getElementById('quick-topic-name');
+  const name = input.value.trim();
+  if (!name) return;
+  const topics = loadTopics();
+  const newTopic = { id: String(Date.now()), name, color: COLORS[topics.length % COLORS.length], sessions:0, minutes:0 };
+  topics.push(newTopic);
+  saveTopics(topics);
+  input.value = '';
+  closeModal('modal-newtopic');
+  renderTopicSelect();
+  document.getElementById('topic-select').value = newTopic.id;
+  notify('✅ Tema creat: ' + name);
+}
+
+function deleteTopic(id) {
+  if (!confirm('Eliminar el tema? Les sessions registrades es conservaran.')) return;
+  const topics = loadTopics().filter(t => t.id !== id);
+  saveTopics(topics);
+  renderTopics();
+  renderTopicSelect();
+  notify('Tema eliminat.');
+}
+
+function renderTopics() {
+  const topics = loadTopics();
+  const list = document.getElementById('topics-list');
+  if (!topics.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🏷</div><p>No hi ha temes. Crea el primer per a classficar el teu treball.</p></div>`;
+    return;
+  }
+  list.innerHTML = topics.map(t => `
+    <div class="topic-item">
+      <div class="topic-color-dot" style="background:${t.color}"></div>
+      <div class="topic-name">${t.name}</div>
+      <div class="topic-sessions">${t.sessions||0} sessions · ${t.minutes||0} min</div>
+      <button class="topic-del" onclick="deleteTopic('${t.id}')" title="Eliminar tema">✕</button>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════
+//  STATISTICS
+// ══════════════════════════════════════════
+function getFilteredSessions() {
+  const period = document.getElementById('filter-period').value;
+  const topicId = document.getElementById('filter-topic').value;
+  let sessions = loadSessions();
+  const now = new Date();
+  if (period === 'week') {
+    const start = new Date(now); start.setDate(now.getDate() - now.getDay() + (now.getDay()===0?-6:1)); start.setHours(0,0,0,0);
+    sessions = sessions.filter(s => new Date(s.date) >= start);
+  } else if (period === 'lastweek') {
+    const end = new Date(now); end.setDate(now.getDate() - now.getDay() + (now.getDay()===0?-6:1)); end.setHours(0,0,0,0);
+    const start = new Date(end); start.setDate(end.getDate() - 7);
+    sessions = sessions.filter(s => { const d=new Date(s.date); return d>=start && d<end; });
+  } else if (period === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    sessions = sessions.filter(s => new Date(s.date) >= start);
+  }
+  if (topicId) sessions = sessions.filter(s => s.topicId === topicId);
+  return sessions;
+}
+
+function renderStats() {
+  const sessions = getFilteredSessions();
+  const totalMin = sessions.reduce((a,s) => a+(s.workMinutes||0), 0);
+  const totalPom = sessions.reduce((a,s) => a+(s.pomodoros||0), 0);
+  const totalSes = sessions.length;
+  const avgMin   = totalSes ? Math.round(totalMin/totalSes) : 0;
+
+  // Grid
+  document.getElementById('stats-grid').innerHTML = [
+    { val: totalSes, lbl: 'Sessions' },
+    { val: totalPom, lbl: 'Pomodoros' },
+    { val: totalMin+'m', lbl: 'Minuts de focus' },
+    { val: avgMin+'m', lbl: 'Durada mitja' },
+  ].map(x => `<div class="stat-card"><div class="stat-val">${x.val}</div><div class="stat-lbl">${x.lbl}</div></div>`).join('');
+
+  // Topic chart
+  const topics = loadTopics();
+  const topicMap = {};
+  topics.forEach(t => { topicMap[t.id] = { name: t.name, color: t.color, min: 0, count: 0 }; });
+  sessions.forEach(s => {
+    if (s.topicId && topicMap[s.topicId]) {
+      topicMap[s.topicId].min += (s.workMinutes||0);
+      topicMap[s.topicId].count++;
+    }
+  });
+  const topicData = Object.values(topicMap).filter(x=>x.min>0).sort((a,b)=>b.min-a.min);
+  const maxMin = topicData.length ? topicData[0].min : 1;
+  const topicChartEl = document.getElementById('topic-chart');
+  if (topicData.length === 0) {
+    topicChartEl.innerHTML = '<p style="color:var(--text3);font-size:0.88rem">No hi ha dades per al filtre seleccionat.</p>';
+  } else {
+    topicChartEl.innerHTML = topicData.map(t => `
+      <div class="bar-row">
+        <div class="bar-label" title="${t.name}">${t.name}</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${Math.max(4,(t.min/maxMin*100))}%;background:${t.color}20;border-left:3px solid ${t.color}">
+          </div>
+        </div>
+        <div class="bar-val">${t.min}m · ${t.count}s</div>
+      </div>`).join('');
+  }
+
+  // Week heatmap (last 8 weeks, Mon-Sun)
+  renderWeekGrid();
+
+  // Sessions table
+  const tbody = document.getElementById('sessions-tbody');
+  const allSessions = sessions.slice(0,50);
+  if (!allSessions.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">No hi ha sessions registrades.</td></tr>`;
+  } else {
+    tbody.innerHTML = allSessions.map(s => {
+      const d = new Date(s.date);
+      const dateStr = d.toLocaleDateString('ca-ES', { weekday:'short', day:'numeric', month:'short' });
+      const topicColor = s.topicId && topics.find(t=>t.id===s.topicId) ? topics.find(t=>t.id===s.topicId).color : '#999';
+      return `<tr>
+        <td>${dateStr}</td>
+        <td><span class="topic-pill" style="background:${topicColor}20;color:${topicColor}">● ${s.topicName||'Sense tema'}</span></td>
+        <td style="font-family:'DM Mono',monospace">${s.workMinutes||0} min</td>
+        <td>Treball</td>
+        <td style="font-family:'DM Mono',monospace">${s.pomodoros||0} 🍅</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+function renderWeekGrid() {
+  const grid = document.getElementById('week-grid');
+  const allSessions = loadSessions();
+  const dayNames = ['Dl','Dt','Dc','Dj','Dv','Ds','Dg'];
+  const now = new Date();
+  // Build 8 weeks × 7 days
+  // Find Monday 8 weeks ago
+  const startDay = new Date(now);
+  const dayOfWeek = (startDay.getDay()+6)%7; // 0=Mon
+  startDay.setDate(startDay.getDate() - dayOfWeek - 7*7);
+  startDay.setHours(0,0,0,0);
+
+  // Aggregate sessions by date
+  const dayData = {};
+  allSessions.forEach(s => {
+    const dk = new Date(s.date).toDateString();
+    if (!dayData[dk]) dayData[dk] = 0;
+    dayData[dk] += (s.workMinutes||0);
+  });
+  const maxDay = Math.max(...Object.values(dayData), 1);
+
+  // Build columns (by week)
+  let html = '';
+  for (let w = 0; w < 8; w++) {
+    html += '<div class="day-col">';
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(startDay);
+      day.setDate(startDay.getDate() + w*7 + d);
+      const dk = day.toDateString();
+      const min = dayData[dk] || 0;
+      const intensity = min ? Math.max(0.12, min/maxDay) : 0;
+      const bg = min
+        ? `rgba(45,80,22,${intensity})`
+        : 'var(--surface2)';
+      const label = day.toLocaleDateString('ca-ES',{weekday:'short',day:'numeric',month:'short'});
+      if (w === 0) html += `<div class="day-name">${dayNames[d]}</div>`;
+      html += `<div class="day-block" style="background:${bg};color:${min?'var(--accent)':'var(--text3)'}" title="${label}: ${min} min">${min||''}</div>`;
+    }
+    html += '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+// ══════════════════════════════════════════
+//  EXPORT CSV
+// ══════════════════════════════════════════
+function exportCSV() {
+  const sessions = loadSessions();
+  const header = 'Data,Hora,Tema,Minuts treball,Pomodoros,Pauses\n';
+  const rows = sessions.map(s => {
+    const d = new Date(s.date);
+    return [
+      d.toLocaleDateString('ca-ES'),
+      d.toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'}),
+      '"'+(s.topicName||'Sense tema')+'"',
+      s.workMinutes||0,
+      s.pomodoros||0,
+      s.breakCount||0
+    ].join(',');
+  }).join('\n');
+  const blob = new Blob(['\uFEFF'+header+rows], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sessions-ptgas-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  notify('📥 CSV exportat correctament.');
+}
+
+// ══════════════════════════════════════════
+//  MODAL HELPERS
+// ══════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ══════════════════════════════════════════
+//  NOTIFICATION
+// ══════════════════════════════════════════
+let notifTimeout = null;
+function notify(msg) {
+  const el = document.getElementById('notification');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (notifTimeout) clearTimeout(notifTimeout);
+  notifTimeout = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+(function init() {
+  loadSettingsUI();
+  renderColorPicker();
+  renderTopicSelect();
+  renderPomodorosDots();
+  renderTimerDisplay_idle();
+  renderControls();
+  updatePhaseUI_idle();
+  // Close modals on overlay click
+  document.querySelectorAll('.modal-overlay').forEach(o => {
+    o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+  });
+})();
+</script>
+</body>
+</html>

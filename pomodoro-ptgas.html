@@ -1,0 +1,3244 @@
+<!DOCTYPE html>
+<html lang="ca" data-theme="default">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Concentra't · Comptador de treball</title>
+<!--
+  ═══════════════════════════════════════════════════════
+  CHANGELOG  Concentra't  (antic FocusPTGAS)
+  ───────────────────────────────────────────────────────
+  v2.3.0 — 2026-04-30
+  [CANVIAT]  "Etiquetes" reanomenat a "Origen"
+             - Clau localStorage _tags → _origens (migració automàtica)
+             - Camp records[].tags → records[].origens (migració en càrrega)
+             - Funcions loadTags/saveTags → loadOrigens/saveOrigens, etc.
+  [AFEGIT]   Origens de sistema (no editables): "Sol·licitud", "Iniciativa personal", "Correu" i "e-Admin"
+             - Es mostren amb 🔒 i no es guarden al localStorage
+  [AFEGIT]   Nou sistema d'"Etiquetes" (independent d'Origen)
+             - Clau localStorage _etiquetes
+             - Camp records[].etiquetes: string[]
+             - Modal de gestió complet (#modal-etiquetes)
+             - Secció independent al modal de registre d'activitat
+             - Filtre per etiqueta a les estadístiques
+             - Gràfic de barres per etiqueta a les estadístiques
+             - Chips diferenciats (vora puntejada) a la taula de sessions
+  [CORREGIT] Bug B: controls del cronòmetre no es refrescaven en iniciar
+             el treball automàticament en acabar la pausa
+             (faltava renderControls() i renderPomodorosDots() al break-end)
+  [CORREGIT] Bug A/C: guarda defensiva a startBreak() per evitar que la
+             pausa s'inicie mentre el modal d'activitat és obert
+  ───────────────────────────────────────────────────────
+  v2.2.0 — 2026-04-28
+  [CORREGIT] El pomodoro ara guarda la sessió en acabar naturalment
+  [AFEGIT]   So de campana (Web Audio API) al final de cada pomodoro
+  [CANVIAT]  Flux de fi de sessió:
+             fi natural → modal (espera usuari) → guarda → pausa auto
+             fi de pausa → treball automàtic (sense interacció)
+  [AFEGIT]   Botons del modal adaptats al context (natural vs manual)
+  ───────────────────────────────────────────────────────
+  v2.1.0 — 2026-04-28
+  [CANVIAT]  Reanomenat de FocusPTGAS a Concentra't
+  [AFEGIT]   Sistema de perfils de dades: crear, canviar
+             i eliminar perfils (namespaces localStorage)
+  [AFEGIT]   Paleta "Pastel modern" (lila/menta/coral)
+  [MIGRAT]   Claus ptgas_* → concentrat_{perfil}_*
+             (migració automàtica de dades existents)
+  ───────────────────────────────────────────────────────
+  v2.0.0 — 2026-04-27
+  [AFEGIT]  Menú hamburguesa per a pantalles < 768px
+  [AFEGIT]  Exportació i importació de dades JSON
+            (fusió o substitució de dades existents)
+  [AFEGIT]  Selector de paleta de colors (Aparença):
+            Default · Fosc · Contrast alt · Universitari
+  [AFEGIT]  Sistema d'etiquetes transversals:
+            - Gestió (crear/eliminar amb color propi)
+            - Assignació en finalitzar sessió
+            - Chips en taula d'estadístiques
+            - Filtre per etiqueta en estadístiques
+            - Gràfic de distribució per etiqueta
+            - Columna "Etiquetes" en exportació CSV
+  [AFEGIT]  Notes ràpides per sessió (màx. 200 car.)
+  [AFEGIT]  Objectiu diari de pomodoros amb barra progrés
+  [AFEGIT]  Notificacions natives del navegador
+  ═══════════════════════════════════════════════════════
+-->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+/* ── PALETES ── */
+:root {
+  --bg: #F5F0E8;
+  --surface: #FDFAF4;
+  --surface2: #EDE8DE;
+  --border: #D4C9B0;
+  --accent: #2D5016;
+  --accent2: #7A3B19;
+  --accent3: #1A4A6B;
+  --text: #1C1A14;
+  --text2: #6B6555;
+  --text3: #A09880;
+  --green: #3A7D2C;
+  --orange: #D4641A;
+  --blue: #1A5C8A;
+  --red: #B03020;
+  --shadow: 0 2px 12px rgba(28,26,20,0.10);
+  --radius: 12px;
+  --ht: #F5F0E8;
+  --ht2: rgba(255,255,255,0.85);
+  --hb: rgba(255,255,255,0.25);
+  --ha: rgba(255,255,255,0.2);
+  --hh: rgba(255,255,255,0.15);
+  --al: #A8D87F;
+}
+[data-theme="dark"] {
+  --bg: #1C1A14;
+  --surface: #252218;
+  --surface2: #2E2B20;
+  --border: #3D3929;
+  --accent: #5A9940;
+  --accent2: #C88050;
+  --accent3: #5A9FD0;
+  --text: #F0EBE0;
+  --text2: #B0A890;
+  --text3: #6B6555;
+  --green: #6ABF50;
+  --orange: #F0854A;
+  --blue: #5A9FD0;
+  --red: #E05A48;
+  --shadow: 0 2px 12px rgba(0,0,0,0.5);
+  --ht: #F0EBE0;
+  --ht2: rgba(240,235,224,0.85);
+  --hb: rgba(255,255,255,0.15);
+  --ha: rgba(255,255,255,0.12);
+  --hh: rgba(255,255,255,0.08);
+  --al: #A8D87F;
+}
+[data-theme="contrast"] {
+  --bg: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface2: #EEEEEE;
+  --border: #000000;
+  --accent: #000000;
+  --accent2: #333333;
+  --accent3: #000099;
+  --text: #000000;
+  --text2: #333333;
+  --text3: #555555;
+  --green: #006600;
+  --orange: #884400;
+  --blue: #000099;
+  --red: #880000;
+  --shadow: 0 2px 6px rgba(0,0,0,0.4);
+  --ht: #FFFFFF;
+  --ht2: rgba(255,255,255,0.9);
+  --hb: rgba(255,255,255,0.5);
+  --ha: rgba(255,255,255,0.2);
+  --hh: rgba(255,255,255,0.15);
+  --al: #FFFFFF;
+}
+[data-theme="university"] {
+  --bg: #F4F7FB;
+  --surface: #FFFFFF;
+  --surface2: #E8EDF5;
+  --border: #C0CCD8;
+  --accent: #003B7A;
+  --accent2: #0055AA;
+  --accent3: #1A6BBF;
+  --text: #1A2433;
+  --text2: #4A5A6B;
+  --text3: #8090A0;
+  --green: #1A7A3C;
+  --orange: #E07020;
+  --blue: #0055AA;
+  --red: #AA2020;
+  --shadow: 0 2px 12px rgba(0,59,122,0.10);
+  --ht: #FFFFFF;
+  --ht2: rgba(255,255,255,0.85);
+  --hb: rgba(255,255,255,0.25);
+  --ha: rgba(255,255,255,0.2);
+  --hh: rgba(255,255,255,0.15);
+  --al: #7EB8F0;
+}
+/* Paleta "Pastel modern" — lila suau + menta + coral */
+[data-theme="pastel"] {
+  --bg: #F9F5FF;
+  --surface: #FFFFFF;
+  --surface2: #F0EAFA;
+  --border: #DDD0F5;
+  --accent: #7C5CBF;
+  --accent2: #D46A8F;
+  --accent3: #5B9BD5;
+  --text: #2D2045;
+  --text2: #6B5F85;
+  --text3: #A899C0;
+  --green: #3CB87A;
+  --orange: #E8925A;
+  --blue: #5B9BD5;
+  --red: #E05A7A;
+  --shadow: 0 2px 14px rgba(124,92,191,0.13);
+  --radius: 12px;
+  --ht: #FFFFFF;
+  --ht2: rgba(255,255,255,0.88);
+  --hb: rgba(255,255,255,0.3);
+  --ha: rgba(255,255,255,0.22);
+  --hh: rgba(255,255,255,0.15);
+  --al: #F4B8D1;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--accent);
+  color: var(--ht);
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  position: relative;
+  z-index: 50;
+  gap: 12px;
+}
+.logo {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.5rem;
+  letter-spacing: -0.5px;
+  color: var(--ht);
+  flex-shrink: 0;
+}
+.logo span { color: var(--al); }
+header nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+header nav button {
+  background: transparent;
+  border: 1.5px solid var(--hb);
+  color: var(--ht2);
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+header nav button:hover {
+  background: var(--hh);
+  color: var(--ht);
+  border-color: rgba(255,255,255,0.45);
+}
+header nav button.active {
+  background: var(--ha);
+  border-color: var(--al);
+  color: var(--al);
+}
+
+/* ── HAMBURGER ── */
+#hamburger-btn {
+  display: none;
+  background: transparent;
+  border: 1.5px solid var(--hb);
+  color: var(--ht);
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+#hamburger-btn:hover { background: var(--hh); }
+
+/* ── MENÚ MÒBIL ── */
+#mobile-nav {
+  background: var(--accent);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  z-index: 48;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+}
+#mobile-nav.open {
+  max-height: 400px;
+  padding: 10px 16px 14px;
+}
+#mobile-nav button {
+  background: transparent;
+  border: 1.5px solid var(--hb);
+  color: var(--ht2);
+  padding: 11px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  transition: all 0.2s;
+}
+#mobile-nav button:hover {
+  background: var(--hh);
+  color: var(--ht);
+  border-color: rgba(255,255,255,0.4);
+}
+#mobile-nav button.active {
+  border-color: var(--al);
+  color: var(--al);
+  background: var(--ha);
+}
+
+/* ── BARRA OBJECTIU DIARI ── */
+#daily-goal-bar {
+  background: var(--surface);
+  border-bottom: 1.5px solid var(--border);
+  padding: 7px 32px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+}
+#daily-goal-bar.visible { display: flex; }
+.goal-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+#daily-goal-track {
+  flex: 1;
+  height: 7px;
+  background: var(--surface2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+#daily-goal-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--accent));
+  border-radius: 4px;
+  width: 0%;
+  transition: width 0.6s ease;
+}
+#daily-goal-pct {
+  font-size: 0.75rem;
+  font-family: 'DM Mono', monospace;
+  color: var(--text3);
+  white-space: nowrap;
+  min-width: 80px;
+  text-align: right;
+}
+
+/* ── LAYOUT ── */
+main { flex: 1; display: none; }
+main.visible { display: block; }
+
+/* ── VISTA CRONÒMETRE ── */
+#view-timer { max-width: 700px; margin: 0 auto; padding: 40px 24px; }
+
+.session-bar {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.session-bar label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text2);
+  white-space: nowrap;
+}
+.session-bar select {
+  flex: 1;
+  min-width: 180px;
+  padding: 9px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  color: var(--text);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B6555' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+.session-bar select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn-new-topic {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  color: var(--text2);
+  padding: 9px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s;
+  font-family: 'DM Sans', sans-serif;
+}
+.btn-new-topic:hover { background: var(--border); color: var(--text); }
+
+/* TARGETA CRONÒMETRE */
+.timer-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 48px 40px 40px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+.timer-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--green), var(--accent));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1s linear;
+}
+.timer-card.running::before { transform: scaleX(var(--progress, 0)); }
+
+.phase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 24px;
+  background: #E8F5E0;
+  color: var(--green);
+  border: 1.5px solid #C5E0AC;
+}
+.phase-badge.break { background: #FFF3E0; color: var(--orange); border-color: #F5C88A; }
+.phase-badge.paused { background: var(--surface2); color: var(--text2); border-color: var(--border); }
+.phase-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.phase-badge:not(.paused) .phase-dot { animation: blink 1.2s ease-in-out infinite; }
+.phase-badge.paused .phase-dot { animation: none; opacity: 0.4; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.current-topic { font-size: 0.95rem; color: var(--text2); margin-bottom: 10px; font-weight: 500; }
+.current-topic strong { color: var(--text); }
+.time-display {
+  font-family: 'DM Mono', monospace;
+  font-size: 5.5rem;
+  font-weight: 300;
+  color: var(--text);
+  letter-spacing: -2px;
+  line-height: 1;
+  margin: 16px 0 32px;
+  transition: color 0.3s;
+}
+.time-display.warning { color: var(--orange); }
+.time-display.critical { color: var(--red); animation: pulse-red 0.8s ease-in-out infinite; }
+@keyframes pulse-red { 0%,100%{opacity:1} 50%{opacity:0.7} }
+
+.pomodoros-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+.pom-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  transition: all 0.3s;
+}
+.pom-dot.done { background: var(--green); border-color: var(--green); }
+.pom-dot.current { background: var(--orange); border-color: var(--orange); animation: blink 1s infinite; }
+
+.timer-controls { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.btn-primary {
+  padding: 14px 36px;
+  background: var(--accent);
+  color: var(--ht);
+  border: none;
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+}
+.btn-primary:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.btn-secondary {
+  padding: 14px 28px;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-secondary:hover { background: var(--border); }
+.btn-danger {
+  padding: 14px 28px;
+  background: #FDF0EE;
+  color: var(--red);
+  border: 1.5px solid #F5C0B8;
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-danger:hover { background: #FAE0DC; }
+
+/* RECORDATORI DE MOVIMENT */
+.movement-card {
+  margin-top: 24px;
+  background: #EEF7FF;
+  border: 1.5px solid #B8D8F0;
+  border-radius: var(--radius);
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  animation: slideUp 0.4s ease;
+}
+@keyframes slideUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+.movement-icon { font-size: 2rem; }
+.movement-text h4 { font-size: 0.95rem; font-weight: 600; color: var(--blue); margin-bottom: 3px; }
+.movement-text p { font-size: 0.85rem; color: var(--text2); }
+.btn-movement-done {
+  margin-left: auto;
+  padding: 8px 18px;
+  background: var(--blue);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: 'DM Sans', sans-serif;
+  white-space: nowrap;
+  transition: filter 0.2s;
+}
+.btn-movement-done:hover { filter: brightness(1.15); }
+
+/* FILA DE CONFIGURACIÓ */
+.settings-row {
+  margin-top: 20px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.setting-item { display: flex; align-items: center; gap: 10px; }
+.setting-item label { font-size: 0.82rem; color: var(--text2); font-weight: 500; }
+.setting-item input[type=number] {
+  width: 68px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--text);
+  text-align: center;
+}
+.setting-item input:focus { outline: 2px solid var(--accent); }
+.setting-hint { font-size: 0.78rem; color: var(--text3); }
+
+/* ── VISTA TEMES ── */
+#view-topics { max-width: 700px; margin: 0 auto; padding: 40px 24px; }
+.view-title { font-family: 'DM Serif Display', serif; font-size: 1.8rem; color: var(--text); margin-bottom: 8px; }
+.view-subtitle { color: var(--text2); font-size: 0.9rem; margin-bottom: 28px; }
+.add-topic-form {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 24px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.add-topic-form input {
+  flex: 1;
+  min-width: 180px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.add-topic-form input:focus { outline: 2px solid var(--accent); }
+.color-picker-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.color-opt {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.color-opt:hover { transform: scale(1.15); }
+.color-opt.selected { border-color: var(--text); transform: scale(1.1); }
+.topics-list { display: flex; flex-direction: column; gap: 10px; }
+.topic-item {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.topic-color-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+.topic-name { font-weight: 500; flex: 1; }
+.topic-sessions { font-size: 0.82rem; color: var(--text2); font-family: 'DM Mono', monospace; }
+.topic-del {
+  background: none;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+.topic-del:hover { color: var(--red); background: #FDF0EE; }
+
+/* ── VISTA ESTADÍSTIQUES ── */
+#view-stats { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+.stats-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 12px; }
+.stats-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.stats-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.stats-filters select {
+  padding: 9px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B6555' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+.btn-export {
+  padding: 9px 18px;
+  background: var(--accent3);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+.btn-export:hover { filter: brightness(1.15); }
+.btn-action {
+  padding: 9px 18px;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-action:hover { background: var(--border); }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 18px;
+  text-align: center;
+}
+.stat-val { font-family: 'DM Mono', monospace; font-size: 2.2rem; font-weight: 400; color: var(--text); line-height: 1; }
+.stat-lbl { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); margin-top: 6px; font-weight: 600; }
+
+.chart-section {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.chart-title { font-weight: 600; font-size: 0.9rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 18px; }
+.bar-chart { display: flex; flex-direction: column; gap: 10px; }
+.bar-row { display: flex; align-items: center; gap: 12px; }
+.bar-label { font-size: 0.82rem; color: var(--text2); width: 130px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { flex: 1; background: var(--surface2); border-radius: 4px; height: 22px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+.bar-val { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--text2); width: 90px; text-align: right; flex-shrink: 0; }
+
+.week-grid { display: flex; gap: 6px; flex-wrap: wrap; }
+.day-col { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.day-name { font-size: 0.7rem; color: var(--text3); font-weight: 600; text-transform: uppercase; height: 38px; display: flex; align-items: center; justify-content: center; }
+.day-block {
+  width: 38px; height: 38px;
+  border-radius: 6px;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text3);
+  transition: all 0.2s;
+  cursor: default;
+  position: relative;
+}
+.day-block:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: var(--bg);
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.sessions-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.sessions-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+  border-bottom: 1.5px solid var(--border);
+  font-weight: 600;
+}
+.sessions-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--surface2);
+  color: var(--text);
+  vertical-align: middle;
+}
+.sessions-table tr:last-child td { border-bottom: none; }
+.sessions-table tr:hover td { background: var(--surface2); }
+
+/* Pastilles */
+.topic-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+/* Chip d'origen (fons semitransparent) */
+.origen-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin: 1px 2px 1px 0;
+  white-space: nowrap;
+}
+.origen-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+/* Chip d'etiqueta (vora puntejada per diferenciar-la visualment) */
+.etiqueta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin: 1px 2px 1px 0;
+  white-space: nowrap;
+  border: 1.5px dashed currentColor;
+  background: transparent;
+}
+.etiqueta-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.note-cell {
+  font-size: 0.78rem;
+  color: var(--text2);
+  font-style: italic;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(28,26,20,0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 460px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  animation: modalIn 0.25s ease;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal.modal-wide { max-width: 540px; }
+@keyframes modalIn { from{opacity:0;transform:scale(0.95) translateY(10px)} to{opacity:1;transform:none} }
+.modal h2 { font-family: 'DM Serif Display', serif; font-size: 1.4rem; margin-bottom: 16px; color: var(--text); }
+.modal p { color: var(--text2); line-height: 1.6; margin-bottom: 16px; font-size: 0.9rem; }
+.emoji-big { font-size: 2.5rem; margin-bottom: 12px; display: block; text-align: center; }
+.modal-btns { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 20px; }
+.modal-section { margin-bottom: 18px; }
+.modal-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text2);
+  margin-bottom: 8px;
+}
+.modal textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text);
+  resize: vertical;
+  min-height: 66px;
+}
+.modal textarea:focus { outline: 2px solid var(--accent); }
+.modal input[type=text] {
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.modal input[type=text].full { width: 100%; }
+.modal input[type=text]:focus { outline: 2px solid var(--accent); }
+.finish-summary-box {
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  font-size: 0.9rem;
+  color: var(--text2);
+}
+.finish-summary-box strong { color: var(--text); }
+
+/* Selector d'origens i etiquetes en modal de fi */
+.origen-selector { display: flex; flex-wrap: wrap; gap: 8px; min-height: 32px; }
+.origen-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.15s;
+  opacity: 0.55;
+  font-family: 'DM Sans', sans-serif;
+}
+.origen-toggle.selected { opacity: 1; font-weight: 700; border-style: solid; }
+.origen-toggle-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* Gestió d'origens i etiquetes */
+.origens-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; max-height: 240px; overflow-y: auto; }
+.origen-mgmt-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+.origen-mgmt-color { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
+.origen-mgmt-name { flex: 1; font-size: 0.88rem; font-weight: 500; }
+.origen-mgmt-count { font-size: 0.75rem; color: var(--text3); font-family: 'DM Mono', monospace; }
+.origen-mgmt-del {
+  background: none; border: none; color: var(--text3);
+  cursor: pointer; padding: 3px 6px; border-radius: 5px; font-size: 1rem; transition: all 0.15s;
+}
+.origen-mgmt-del:hover { color: var(--red); background: #FDF0EE; }
+.add-origen-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.add-origen-form input[type=text] { flex: 1; min-width: 130px; }
+.add-origen-form input[type=color] {
+  width: 38px; height: 36px; padding: 2px 3px;
+  border: 1.5px solid var(--border); border-radius: 6px; cursor: pointer; background: var(--bg);
+}
+/* Badge per a origens de sistema */
+.origen-system-badge {
+  font-size: 0.65rem; color: var(--text3); padding: 1px 5px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); margin-left: 4px; vertical-align: middle;
+}
+
+/* Paletes d'aparença */
+.theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 4px; }
+.theme-card {
+  border: 2.5px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.theme-card:hover { border-color: var(--accent); }
+.theme-card.selected { border-color: var(--accent); background: var(--surface2); }
+.theme-preview { display: flex; gap: 5px; justify-content: center; margin-bottom: 8px; }
+.theme-swatch { width: 22px; height: 22px; border-radius: 50%; }
+.theme-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.theme-desc { font-size: 0.72rem; color: var(--text3); margin-top: 2px; }
+
+/* Modal importació */
+.import-zone {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 24px 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 16px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.import-zone:hover { border-color: var(--accent); background: var(--surface2); }
+.import-zone input[type=file] { display: none; }
+.import-zone-icon { font-size: 2rem; line-height: 1; }
+.import-zone-text { color: var(--text2); font-size: 0.88rem; }
+.import-summary {
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  color: var(--text2);
+  margin-bottom: 14px;
+  display: none;
+}
+.import-summary.visible { display: flex; flex-direction: column; gap: 4px; }
+.import-summary-row { display: flex; align-items: baseline; gap: 6px; line-height: 1.5; }
+.import-summary-row strong { color: var(--text); }
+.import-mode { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+.import-mode label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.import-mode label:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+.import-mode input[type=radio] { accent-color: var(--accent); flex-shrink: 0; }
+
+/* ── SELECTOR DE PERFIL ── */
+/* ── PANTALLA D'ONBOARDING ── */
+#onboarding {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+#onboarding.hidden { display: none; }
+.onboarding-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 48px 40px 40px;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+}
+.onboarding-logo {
+  font-family: 'DM Serif Display', serif;
+  font-size: 2.2rem;
+  color: var(--accent);
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+.onboarding-logo span { color: var(--accent2); }
+.onboarding-desc {
+  font-size: 0.95rem;
+  color: var(--text2);
+  margin-bottom: 32px;
+  line-height: 1.5;
+}
+.onboarding-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+.onboarding-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.onboarding-input.error { border-color: var(--red); }
+.onboarding-error {
+  font-size: 0.85rem;
+  color: var(--red);
+  margin-bottom: 16px;
+  min-height: 1.2em;
+  text-align: left;
+}
+.onboarding-btn {
+  width: 100%;
+  padding: 14px;
+  background: var(--accent);
+  color: var(--ht);
+  border: none;
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.2s, transform 0.15s;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+}
+.onboarding-btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
+
+/* ── ESTAT BUIT ── */
+.empty-state { text-align: center; padding: 48px 24px; color: var(--text3); }
+.empty-icon { font-size: 3rem; margin-bottom: 12px; }
+.empty-state p { font-size: 0.9rem; }
+
+/* ── NOTIFICACIÓ TOAST ── */
+.notification {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  background: var(--text);
+  color: var(--bg);
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+  z-index: 200;
+  max-width: 320px;
+}
+.notification.show { transform: translateY(0); opacity: 1; }
+
+/* ── INDICADOR TEMPS SENSE REGISTRAR ── */
+.unregistered-time {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text2);
+  font-family: 'DM Mono', monospace;
+}
+.unregistered-time .unreg-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--orange); flex-shrink: 0;
+  animation: blink 1.2s ease-in-out infinite;
+}
+.unregistered-time.urgent { color: var(--orange); }
+
+/* ── LLISTA DE REGISTRES DE LA SESSIÓ ACTIVA ── */
+.session-records-list {
+  margin-top: 16px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: none;
+}
+.session-records-list.visible { display: block; }
+.session-records-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+  margin-bottom: 10px;
+}
+.record-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--surface2);
+  font-size: 0.83rem;
+}
+.record-item:last-child { border-bottom: none; }
+.record-topic-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.record-topic-name { flex: 1; font-weight: 500; color: var(--text); }
+.record-minutes { font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--text2); }
+
+/* ── MODAL ACTIVITAT (no bloquejant) ── */
+.modal-overlay.activity-overlay {
+  align-items: flex-end;
+  padding: 0;
+}
+.modal-overlay.activity-overlay .modal {
+  border-radius: 16px 16px 0 0;
+  max-width: 100%;
+  width: 100%;
+  max-height: 80vh;
+  animation: slideFromBottom 0.3s ease;
+}
+@keyframes slideFromBottom { from{transform:translateY(100%)} to{transform:none} }
+@media(min-width: 640px) {
+  .modal-overlay.activity-overlay { align-items: center; padding: 0; }
+  .modal-overlay.activity-overlay .modal {
+    border-radius: 16px;
+    max-width: 480px;
+    width: 90%;
+    animation: modalIn 0.25s ease;
+  }
+}
+.activity-time-info {
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--text2);
+  margin-bottom: 18px;
+  font-family: 'DM Mono', monospace;
+}
+.activity-time-info strong { color: var(--text); }
+.topic-select-modal {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B6555' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+.topic-select-modal:focus { outline: 2px solid var(--accent); }
+.char-counter { font-size: 0.72rem; color: var(--text3); text-align: right; margin-top: 4px; }
+
+/* ── RESPONSIVE ── */
+@media(max-width: 768px) {
+  header nav { display: none; }
+  #hamburger-btn { display: flex; }
+  header { padding: 12px 16px; gap: 8px; }
+  #daily-goal-bar { padding: 7px 16px; }
+}
+@media(max-width: 600px) {
+  .time-display { font-size: 3.8rem; }
+  #view-timer, #view-topics, #view-stats { padding: 24px 14px; }
+  .timer-card { padding: 32px 20px 28px; }
+  .theme-grid { grid-template-columns: 1fr 1fr; }
+  .modal { padding: 24px 18px; }
+  .stats-actions { width: 100%; }
+  .sessions-table { font-size: 0.78rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ ONBOARDING ══════════════ -->
+<div id="onboarding">
+  <div class="onboarding-card">
+    <div class="onboarding-logo">Concentra<span>'t</span></div>
+    <p class="onboarding-desc">
+      Identifica't amb el teu correu <strong>@ua.es</strong> per començar.<br>
+      Les dades es guarden localment en el navegador.
+    </p>
+    <input
+      type="email"
+      id="onboarding-email"
+      class="onboarding-input"
+      placeholder="correu@ua.es"
+      autocomplete="email"
+      onkeydown="if(event.key==='Enter')finishOnboarding()"
+    >
+    <div class="onboarding-error" id="onboarding-error"></div>
+    <button class="onboarding-btn" onclick="finishOnboarding()">Comença →</button>
+  </div>
+</div>
+
+<!-- ══════════════ CAPÇALERA ══════════════ -->
+<header>
+  <div class="logo">Concentra<span>'t</span></div>
+  <nav>
+    <button class="active" id="nav-timer" onclick="showView('timer')">⏱ Cronòmetre</button>
+    <button id="nav-topics" onclick="showView('topics')">🏷 Temes</button>
+    <button id="nav-stats" onclick="showView('stats')">📊 Estadístiques</button>
+    <button id="nav-origens" onclick="openModal('modal-origens')">🔖 Origen</button>
+    <button id="nav-etiquetes" onclick="openModal('modal-etiquetes')">🏷 Etiquetes</button>
+    <button id="nav-appearance" onclick="openModal('modal-appearance')">🎨 Aparença</button>
+  </nav>
+  <button id="hamburger-btn" onclick="toggleMobileNav()" aria-label="Menú">☰</button>
+</header>
+
+<!-- ══════════════ MENÚ MÒBIL ══════════════ -->
+<div id="mobile-nav">
+  <button class="active" id="mnav-timer" onclick="showView('timer');closeMobileNav()">⏱ Cronòmetre</button>
+  <button id="mnav-topics" onclick="showView('topics');closeMobileNav()">🏷 Temes</button>
+  <button id="mnav-stats" onclick="showView('stats');closeMobileNav()">📊 Estadístiques</button>
+  <button onclick="openModal('modal-origens');closeMobileNav()">🔖 Origen</button>
+  <button onclick="openModal('modal-etiquetes');closeMobileNav()">🏷 Etiquetes</button>
+  <button onclick="openModal('modal-appearance');closeMobileNav()">🎨 Aparença</button>
+  <button onclick="openModal('modal-profiles');closeMobileNav()">👤 Perfils de dades</button>
+</div>
+
+<!-- ══════════════ BARRA OBJECTIU DIARI ══════════════ -->
+<div id="daily-goal-bar">
+  <span class="goal-label">Objectiu d'avui</span>
+  <div id="daily-goal-track"><div id="daily-goal-fill"></div></div>
+  <span id="daily-goal-pct">0 / 0 🍅</span>
+</div>
+
+<!-- ══════════════ VISTA CRONÒMETRE ══════════════ -->
+<main id="view-timer" class="visible">
+  <div id="view-timer-content">
+    <div class="timer-card" id="timer-card">
+      <div class="phase-badge paused" id="phase-badge">
+        <span class="phase-dot"></span>
+        <span id="phase-label">Preparat</span>
+      </div>
+      <div class="time-display" id="time-display">25:00</div>
+      <div class="pomodoros-row" id="pomodoros-row"></div>
+      <div class="timer-controls" id="timer-controls">
+        <button class="btn-primary" onclick="startTimer()">▶ Inicia la sessió</button>
+      </div>
+    </div>
+
+    <div id="unregistered-time" class="unregistered-time" style="display:none">
+      <span class="unreg-dot"></span>
+      <span id="unreg-label">Temps sense registrar: 0 min</span>
+    </div>
+
+    <div id="session-records-list" class="session-records-list">
+      <div class="session-records-title">Registres d'aquesta sessió</div>
+      <div id="records-list-body"></div>
+    </div>
+
+    <div id="movement-reminder" style="display:none"></div>
+
+    <div class="settings-row">
+      <div class="setting-item">
+        <label>🍅 Treball (min)</label>
+        <input type="number" id="set-work" value="25" min="1" max="90" onchange="applySettings()">
+      </div>
+      <div class="setting-item">
+        <label>☕ Pausa curta (min)</label>
+        <input type="number" id="set-short" value="5" min="1" max="30" onchange="applySettings()">
+      </div>
+      <div class="setting-item">
+        <label>🌿 Pausa llarga (min)</label>
+        <input type="number" id="set-long" value="15" min="5" max="60" onchange="applySettings()">
+      </div>
+      <div class="setting-item">
+        <label>Pomodoros fins a pausa llarga</label>
+        <input type="number" id="set-long-after" value="4" min="2" max="8" onchange="applySettings()">
+      </div>
+      <div class="setting-item">
+        <label>🎯 Objectiu diari (🍅)</label>
+        <input type="number" id="set-daily-goal" value="0" min="0" max="20" onchange="applySettings()">
+      </div>
+      <span class="setting-hint">0 = sense objectiu · Els canvis s'apliquen a la propera sessió</span>
+    </div>
+  </div>
+</main>
+
+<!-- ══════════════ VISTA TEMES ══════════════ -->
+<main id="view-topics">
+  <div>
+    <h1 class="view-title">Gestió de temes</h1>
+    <p class="view-subtitle">Classifica les sessions de treball per àrees temàtiques.</p>
+    <div class="add-topic-form">
+      <input type="text" id="new-topic-name" placeholder="Nom del tema (p.ex. Gestió Acadèmica, SAP…)" maxlength="50">
+      <div class="color-picker-row" id="color-picker"></div>
+      <button class="btn-primary" onclick="addTopic()" style="padding:10px 22px;font-size:0.9rem">Afig tema</button>
+    </div>
+    <div class="topics-list" id="topics-list"></div>
+  </div>
+</main>
+
+<!-- ══════════════ VISTA ESTADÍSTIQUES ══════════════ -->
+<main id="view-stats">
+  <div>
+    <div class="stats-header">
+      <h1 class="view-title" style="margin:0">Estadístiques</h1>
+      <div class="stats-actions">
+        <button class="btn-action" onclick="openImportModal()">⬆ Importa</button>
+        <button class="btn-action" onclick="exportJSON()">⬇ JSON</button>
+        <button class="btn-export" onclick="exportCSV()">⬇ CSV</button>
+      </div>
+    </div>
+    <p class="view-subtitle">Resum del teu temps de concentració i les teues sessions.</p>
+
+    <div class="stats-filters">
+      <select id="filter-period" onchange="renderStats()">
+        <option value="all">Tot el temps</option>
+        <option value="week" selected>Aquesta setmana</option>
+        <option value="month">Aquest mes</option>
+        <option value="lastweek">Setmana passada</option>
+      </select>
+      <select id="filter-topic" onchange="renderStats()">
+        <option value="">Tots els temes</option>
+      </select>
+      <select id="filter-origen" onchange="renderStats()">
+        <option value="">Tots els origens</option>
+      </select>
+      <select id="filter-etiqueta" onchange="renderStats()">
+        <option value="">Totes les etiquetes</option>
+      </select>
+    </div>
+
+    <div class="stats-grid" id="stats-grid"></div>
+
+    <div class="chart-section">
+      <div class="chart-title">Minuts per tema</div>
+      <div class="bar-chart" id="topic-chart"></div>
+    </div>
+
+    <div class="chart-section" id="origen-chart-section">
+      <div class="chart-title">Minuts per origen</div>
+      <div class="bar-chart" id="origen-chart"></div>
+    </div>
+
+    <div class="chart-section" id="etiqueta-chart-section">
+      <div class="chart-title">Minuts per etiqueta</div>
+      <div class="bar-chart" id="etiqueta-chart"></div>
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-title">Activitat de les últimes 8 setmanes</div>
+      <div class="week-grid" id="week-grid"></div>
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-title">Sessions recents</div>
+      <div style="overflow-x:auto">
+        <table class="sessions-table" id="sessions-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Hora</th>
+              <th>Tema</th>
+              <th>Min.</th>
+              <th>Origen / Etiquetes</th>
+              <th>Nota</th>
+            </tr>
+          </thead>
+          <tbody id="sessions-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ══════════════ MODAL: Registre d'activitat ══════════════ -->
+<div class="modal-overlay activity-overlay" id="modal-activity">
+  <div class="modal">
+    <h2>📝 Registra l'activitat</h2>
+    <div class="activity-time-info" id="activity-time-info">
+      Temps a registrar: <strong id="activity-minutes">0 min</strong>
+      <span id="activity-time-range" style="color:var(--text3);font-size:0.8rem;margin-left:6px"></span>
+    </div>
+
+    <div class="modal-section">
+      <label class="modal-label" for="activity-topic-select">Tema <span style="color:var(--red)">*</span></label>
+      <select id="activity-topic-select" class="topic-select-modal"></select>
+      <button class="btn-new-topic" style="margin-top:8px;width:100%;text-align:center"
+        onclick="openNewTopicFromActivity()">+ Nou tema</button>
+    </div>
+
+    <div class="modal-section" id="activity-origens-section">
+      <label class="modal-label">Origen <span style="font-weight:400;color:var(--text3)">(opcional)</span></label>
+      <div class="origen-selector" id="activity-origen-selector"></div>
+    </div>
+
+    <div class="modal-section" id="activity-etiquetes-section">
+      <hr style="border:none;border-top:1px solid var(--border);margin:2px 0 14px">
+      <label class="modal-label">Etiquetes <span style="font-weight:400;color:var(--text3)">(opcional)</span></label>
+      <div class="origen-selector" id="activity-etiqueta-selector"></div>
+    </div>
+
+    <div class="modal-section">
+      <label class="modal-label" for="activity-note">Nota <span style="font-weight:400;color:var(--text3)">(opcional, màx. 200 car.)</span></label>
+      <textarea id="activity-note" maxlength="200" placeholder="Què has fet? Alguna tasca pendent…"
+        oninput="document.getElementById('activity-note-counter').textContent=this.value.length+'/200'"></textarea>
+      <div class="char-counter"><span id="activity-note-counter">0/200</span></div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="discardActivityRecord()">Descarta</button>
+      <button class="btn-primary" onclick="saveActivityRecord()">💾 Desa el registre</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: Nou tema ràpid ══════════════ -->
+<div class="modal-overlay" id="modal-newtopic">
+  <div class="modal">
+    <h2>Crea un tema ràpid</h2>
+    <p>Afig un tema de treball per a classificar les sessions.</p>
+    <input type="text" class="full" id="quick-topic-name" placeholder="Nom del tema…"
+      style="margin-bottom:16px">
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modal-newtopic')">Cancel·la</button>
+      <button class="btn-primary" onclick="addTopicFromModal()">Crea</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: Gestió d'origens ══════════════ -->
+<div class="modal-overlay" id="modal-origens">
+  <div class="modal modal-wide">
+    <h2>🔖 Gestió d'origen</h2>
+    <p>L'origen indica la procedència de la tasca. Els orígens de sistema (🔒) no es poden modificar.</p>
+    <div class="origens-list" id="origens-list"></div>
+    <div class="add-origen-form">
+      <input type="text" id="new-origen-name" placeholder="Nou origen d'usuari…" maxlength="30" style="flex:1;min-width:130px">
+      <input type="color" id="new-origen-color" value="#8B3A9B">
+      <button class="btn-primary" onclick="addOrigen()" style="padding:9px 18px;font-size:0.85rem">Afig</button>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modal-origens')">Tanca</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: Gestió d'etiquetes ══════════════ -->
+<div class="modal-overlay" id="modal-etiquetes">
+  <div class="modal modal-wide">
+    <h2>🏷 Gestió d'etiquetes</h2>
+    <p>Les etiquetes classifiquen transversalment les sessions, independent de l'origen.</p>
+    <div class="origens-list" id="etiquetes-list"></div>
+    <div class="add-origen-form">
+      <input type="text" id="new-etiqueta-name" placeholder="Nom de l'etiqueta…" maxlength="30" style="flex:1;min-width:130px">
+      <input type="color" id="new-etiqueta-color" value="#1565C0">
+      <button class="btn-primary" onclick="addEtiqueta()" style="padding:9px 18px;font-size:0.85rem">Afig</button>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modal-etiquetes')">Tanca</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: Aparença ══════════════ -->
+<div class="modal-overlay" id="modal-appearance">
+  <div class="modal">
+    <h2>🎨 Aparença</h2>
+    <p>Selecciona una paleta de colors. S'aplicarà immediatament i es guardarà per a pròximes visites.</p>
+    <div class="theme-grid" id="theme-grid"></div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modal-appearance')">Tanca</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: Importar dades ══════════════ -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal modal-wide">
+    <h2>⬆ Importa dades</h2>
+    <p>Selecciona un fitxer <code style="font-family:'DM Mono',monospace;background:var(--surface2);padding:1px 5px;border-radius:4px">.json</code> exportat per Concentra't.</p>
+
+    <label class="import-zone" for="import-file-input">
+      <input type="file" id="import-file-input" accept=".json" onchange="handleImportFile(this)">
+      <div class="import-zone-icon">📂</div>
+      <div class="import-zone-text">Fes clic per seleccionar el fitxer JSON</div>
+    </label>
+
+    <div class="import-summary" id="import-summary"></div>
+
+    <div class="modal-section">
+      <label class="modal-label">Mode d'importació</label>
+      <div class="import-mode">
+        <label><input type="radio" name="import-mode" value="merge" checked> <strong>Fusiona</strong> (afig sense esborrar)</label>
+        <label><input type="radio" name="import-mode" value="replace"> <strong>Substitueix</strong> totes les dades</label>
+      </div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('modal-import');clearImport()">Cancel·la</button>
+      <button class="btn-primary" id="btn-confirm-import" disabled onclick="confirmImport()">Importa</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ NOTIFICACIÓ TOAST ══════════════ -->
+<div class="notification" id="notification"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  CLAUS GLOBALS (no depenen del perfil)
+// ══════════════════════════════════════════
+const KEY_THEME    = 'concentrat_theme';
+const KEY_PROFILES = 'concentrat_profiles';   // llista de noms de perfil
+const KEY_ACTIVE   = 'concentrat_active';     // perfil actiu
+
+// ── Perfil actiu (namespace de totes les dades); s'assigna a init() ──
+let PROFILE = '';
+
+// Genera la clau localStorage per al perfil actiu
+function k(suffix) { return `concentrat_${PROFILE}_${suffix}`; }
+
+// ══════════════════════════════════════════
+//  GESTIÓ DE PERFILS (arquitectura interna)
+// ══════════════════════════════════════════
+function loadProfiles() {
+  const raw = localStorage.getItem(KEY_PROFILES);
+  return raw ? JSON.parse(raw) : [];
+}
+function saveProfiles(list) {
+  localStorage.setItem(KEY_PROFILES, JSON.stringify(list));
+}
+
+// ══════════════════════════════════════════
+//  ONBOARDING (identificació per correu @ua.es)
+// ══════════════════════════════════════════
+
+/** Mostra la pantalla d'onboarding (cap perfil creat encara) */
+function showOnboarding() {
+  document.getElementById('onboarding').classList.remove('hidden');
+}
+
+/** Valida el correu i inicialitza el perfil de l'usuari */
+function finishOnboarding() {
+  const input = document.getElementById('onboarding-email');
+  const errEl = document.getElementById('onboarding-error');
+  const email = input.value.trim().toLowerCase();
+
+  // Validació: ha d'acabar en @ua.es
+  if (!email.endsWith('@ua.es')) {
+    errEl.textContent = 'El correu ha d\'acabar en @ua.es. Comprova que l\'has escrit bé.';
+    input.classList.add('error');
+    input.focus();
+    return;
+  }
+
+  errEl.textContent = '';
+  input.classList.remove('error');
+
+  // Desa el perfil amb el correu com a identificador
+  PROFILE = email;
+  saveProfiles([email]);
+  localStorage.setItem(KEY_ACTIVE, email);
+
+  // Amaga l'onboarding i inicialitza l'app
+  document.getElementById('onboarding').classList.add('hidden');
+  bootApp();
+}
+
+// ══════════════════════════════════════════
+//  CAPA DE DADES (usa el perfil actiu)
+// ══════════════════════════════════════════
+function loadTopics()    { return JSON.parse(localStorage.getItem(k('topics'))   || '[]'); }
+function saveTopics(t)   { localStorage.setItem(k('topics'),   JSON.stringify(t)); }
+function loadSessions()  {
+  const raw = JSON.parse(localStorage.getItem(k('sessions')) || '[]');
+  return raw.map(migrateSessionFormat);
+}
+function saveSessions(s) { localStorage.setItem(k('sessions'), JSON.stringify(s)); }
+
+/** Migra sessions del format antic (sense records[]) al nou format v3
+ *  i assegura que cada record té els camps origens i etiquetes */
+function migrateSessionFormat(s) {
+  if (!Array.isArray(s.records)) {
+    // Format v1.x: crea un registre sintètic
+    const record = {
+      id:        String(s.id) + '_r',
+      sessionId: String(s.id),
+      topicId:   s.topicId   || '',
+      topicName: s.topicName || 'Sense tema',
+      origens:   s.origens   || s.tags || [],
+      etiquetes: s.etiquetes || [],
+      note:      s.note      || '',
+      startTime: s.date,
+      endTime:   s.endDate   || s.date,
+      minutes:   s.workMinutes || 0
+    };
+    return {
+      id:           s.id,
+      date:         s.date,
+      endDate:      s.endDate || s.date,
+      pomodoros:    s.pomodoros    || 0,
+      breakCount:   s.breakCount   || 0,
+      totalMinutes: s.workMinutes  || 0,
+      records:      s.workMinutes > 0 || s.topicId ? [record] : []
+    };
+  }
+  // Format v2.x: migra cada record si cal (tags → origens, afegeix etiquetes)
+  return {
+    ...s,
+    records: s.records.map(r => ({
+      ...r,
+      origens:   r.origens   !== undefined ? r.origens   : (r.tags || []),
+      etiquetes: r.etiquetes !== undefined ? r.etiquetes : []
+    }))
+  };
+}
+
+function loadOrigens()    { return JSON.parse(localStorage.getItem(k('origens'))    || '[]'); }
+function saveOrigens(t)   { localStorage.setItem(k('origens'),    JSON.stringify(t)); }
+function loadEtiquetes()  { return JSON.parse(localStorage.getItem(k('etiquetes'))  || '[]'); }
+function saveEtiquetes(t) { localStorage.setItem(k('etiquetes'),  JSON.stringify(t)); }
+
+/** Migra la clau _tags a _origens per a tots els perfils (executa una sola vegada) */
+function migrateLSTagsToOrigens() {
+  const profiles = loadProfiles();
+  profiles.forEach(p => {
+    const tagsKey    = `concentrat_${p}_tags`;
+    const origensKey = `concentrat_${p}_origens`;
+    if (localStorage.getItem(tagsKey) !== null && localStorage.getItem(origensKey) === null) {
+      localStorage.setItem(origensKey, localStorage.getItem(tagsKey));
+      localStorage.removeItem(tagsKey);
+    }
+  });
+}
+
+function loadSettings() {
+  return Object.assign(
+    { work: 25, short: 5, long: 15, longAfter: 4, dailyGoal: 0 },
+    JSON.parse(localStorage.getItem(k('settings')) || '{}')
+  );
+}
+function saveSettings(s) { localStorage.setItem(k('settings'), JSON.stringify(s)); }
+
+function saveSession(session) {
+  const sessions = loadSessions();
+  sessions.unshift(session);
+  saveSessions(sessions);
+}
+
+/** Desa o actualitza la sessió activa al localStorage després de cada registre. */
+function upsertDraftSession() {
+  if (!currentSessionRecords.length || !currentSessionId) return;
+  const sessions = loadSessions();
+  const idx      = sessions.findIndex(s => String(s.id) === String(currentSessionId));
+  const totalMin = currentSessionRecords.reduce((a, r) => a + r.minutes, 0);
+  const draft = {
+    id:           Number(currentSessionId),
+    date:         sessionStartTime ? sessionStartTime.toISOString() : new Date().toISOString(),
+    endDate:      new Date().toISOString(),
+    pomodoros:    pomodorosThisSession,
+    breakCount,
+    totalMinutes: Math.round(totalMin * 10) / 10,
+    records:      [...currentSessionRecords]
+  };
+  if (idx >= 0) sessions[idx] = draft;
+  else sessions.unshift(draft);
+  saveSessions(sessions);
+}
+
+// ══════════════════════════════════════════
+//  ESTAT
+// ══════════════════════════════════════════
+const COLORS = ['#3A7D2C','#D4641A','#1A5C8A','#8B3A9B','#B03020','#C49A1A','#2D5016','#6B3A2C'];
+
+// Origens de sistema: no es guarden al localStorage, no es poden editar ni eliminar
+const SYSTEM_ORIGENS = [
+  { id: 'sys_eadmin',   name: 'e-Admin',              color: '#003B7A', system: true },
+  { id: 'sys_solicitud',name: 'Sol·licitud',           color: '#1565C0', system: true },
+  { id: 'sys_telefon',  name: 'Telèfon',               color: '#2E7D32', system: true },
+  { id: 'sys_reunio',   name: 'Reunió',                color: '#6A1B9A', system: true },
+  { id: 'sys_inicpers', name: 'Iniciativa personal',   color: '#E65100', system: true },
+  { id: 'sys_correu',   name: 'Correu',                color: '#00838F', system: true },
+];
+let selectedColor = COLORS[0];
+let settings = loadSettings();
+
+let timerState = 'idle'; // idle | running | paused
+let intervalId = null;
+let secondsLeft = 0;
+let totalSeconds = 0;
+let phase = 'work'; // work | break
+let pomodorosThisSession = 0;
+let sessionStartTime = null;
+let workSecondsAccum = 0;
+let breakCount = 0;
+
+// Timestamps absoluts per resistir suspensions del sistema (Bug 1 & 2)
+let phaseEndTime = 0;           // ms epoch en què ha d'acabar la fase activa
+let phaseCompleting = false;    // guarda per evitar doble execució de phaseComplete
+let unregisteredWorkStart = null; // instant d'inici del bloc de treball sense registrar
+
+// Pausa pendent d'iniciar (s'omple quan acaba la fase de treball)
+let pendingBreakDuration = 0;
+let pendingBreakIsLong   = false;
+
+// Registres d'activitat de la sessió activa
+let currentSessionId      = null;
+let currentSessionRecords = [];
+let unregisteredWorkSecs  = 0;  // segons de treball no registrats des de l'últim record
+let lastRecordEndTime     = null; // Date: quan va acabar l'últim registre (o inici sessió)
+
+// Flags de control del modal d'activitat
+let pendingPhaseEnd  = false; // true = modal obert per fi natural de pomodoro
+let pendingFinishEnd = false; // true = modal obert per "Acabar sessió"
+let pendingFinishAndStart = false;
+
+// ══════════════════════════════════════════
+//  TEMES VISUALS (APARENÇA)
+// ══════════════════════════════════════════
+const THEMES = [
+  {
+    id: 'default',
+    name: 'Default',
+    desc: 'Tons càlids beix/verd',
+    swatches: ['#F5F0E8','#2D5016','#D4641A','#A09880']
+  },
+  {
+    id: 'dark',
+    name: 'Fosc',
+    desc: 'Mode fosc, fons obscur',
+    swatches: ['#1C1A14','#5A9940','#F0854A','#B0A890']
+  },
+  {
+    id: 'contrast',
+    name: 'Contrast alt',
+    desc: 'Blanc i negre (accessibilitat)',
+    swatches: ['#FFFFFF','#000000','#006600','#555555']
+  },
+  {
+    id: 'university',
+    name: 'Universitari',
+    desc: 'Blau institucional + gris',
+    swatches: ['#F4F7FB','#003B7A','#1A7A3C','#8090A0']
+  },
+  {
+    id: 'pastel',
+    name: 'Pastel modern',
+    desc: 'Lila suau, menta i coral',
+    swatches: ['#F9F5FF','#7C5CBF','#3CB87A','#E05A7A']
+  }
+];
+
+function applyTheme(id) {
+  document.documentElement.setAttribute('data-theme', id);
+  localStorage.setItem(KEY_THEME, id);
+  renderThemeGrid();
+}
+
+function renderThemeGrid() {
+  const current = document.documentElement.getAttribute('data-theme') || 'default';
+  document.getElementById('theme-grid').innerHTML = THEMES.map(t => `
+    <div class="theme-card${t.id === current ? ' selected' : ''}" onclick="applyTheme('${t.id}')">
+      <div class="theme-preview">
+        ${t.swatches.map(c => `<div class="theme-swatch" style="background:${c};border:1.5px solid rgba(0,0,0,0.1)"></div>`).join('')}
+      </div>
+      <div class="theme-name">${t.name}</div>
+      <div class="theme-desc">${t.desc}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════
+//  NAVEGACIÓ
+// ══════════════════════════════════════════
+function showView(v) {
+  ['timer','topics','stats'].forEach(name => {
+    document.getElementById('view-' + name).classList.remove('visible');
+    const btn = document.getElementById('nav-' + name);
+    if (btn) btn.classList.remove('active');
+    const mbtn = document.getElementById('mnav-' + name);
+    if (mbtn) mbtn.classList.remove('active');
+  });
+  document.getElementById('view-' + v).classList.add('visible');
+  const btn = document.getElementById('nav-' + v);
+  if (btn) btn.classList.add('active');
+  const mbtn = document.getElementById('mnav-' + v);
+  if (mbtn) mbtn.classList.add('active');
+  if (v === 'topics') renderTopics();
+  if (v === 'stats')  renderStats();
+  if (v === 'timer')  renderTopicSelect();
+}
+
+function toggleMobileNav() {
+  document.getElementById('mobile-nav').classList.toggle('open');
+}
+function closeMobileNav() {
+  document.getElementById('mobile-nav').classList.remove('open');
+}
+
+// Tanca el menú mòbil si es fa clic fora
+document.addEventListener('click', e => {
+  const nav = document.getElementById('mobile-nav');
+  const btn = document.getElementById('hamburger-btn');
+  if (nav.classList.contains('open') && !nav.contains(e.target) && e.target !== btn) {
+    nav.classList.remove('open');
+  }
+});
+
+// ══════════════════════════════════════════
+//  CONFIGURACIÓ
+// ══════════════════════════════════════════
+function applySettings() {
+  settings.work      = +document.getElementById('set-work').value      || 25;
+  settings.short     = +document.getElementById('set-short').value     || 5;
+  settings.long      = +document.getElementById('set-long').value      || 15;
+  settings.longAfter = +document.getElementById('set-long-after').value || 4;
+  settings.dailyGoal = +document.getElementById('set-daily-goal').value || 0;
+  saveSettings(settings);
+  if (timerState === 'idle') renderTimerDisplay_idle();
+  updateDailyGoal();
+}
+
+function loadSettingsUI() {
+  document.getElementById('set-work').value       = settings.work;
+  document.getElementById('set-short').value      = settings.short;
+  document.getElementById('set-long').value       = settings.long;
+  document.getElementById('set-long-after').value = settings.longAfter;
+  document.getElementById('set-daily-goal').value = settings.dailyGoal || 0;
+}
+
+// ══════════════════════════════════════════
+//  OBJECTIU DIARI
+// ══════════════════════════════════════════
+function updateDailyGoal() {
+  const goal = settings.dailyGoal || 0;
+  const bar  = document.getElementById('daily-goal-bar');
+  if (!goal) { bar.classList.remove('visible'); return; }
+  bar.classList.add('visible');
+
+  const today = new Date().toDateString();
+  const savedPom = loadSessions()
+    .filter(s => new Date(s.date).toDateString() === today)
+    .reduce((a, s) => a + (s.pomodoros || 0), 0);
+  // Suma pomodoros de la sessió activa si n'hi ha
+  const todayPom = savedPom + (timerState !== 'idle' ? pomodorosThisSession : 0);
+
+  const pct = Math.min(100, Math.round((todayPom / goal) * 100));
+  document.getElementById('daily-goal-fill').style.width = pct + '%';
+  document.getElementById('daily-goal-pct').textContent = `${todayPom} / ${goal} 🍅 (${pct}%)`;
+}
+
+// ══════════════════════════════════════════
+//  CRONÒMETRE
+// ══════════════════════════════════════════
+function renderTimerDisplay_idle() {
+  const m = String(settings.work).padStart(2, '0');
+  document.getElementById('time-display').textContent = `${m}:00`;
+  document.getElementById('time-display').className = 'time-display';
+  document.getElementById('timer-card').style.setProperty('--progress', 0);
+}
+
+function startTimer() {
+  if (timerState === 'idle') {
+    phase = 'work';
+    pomodorosThisSession = 0;
+    sessionStartTime = new Date();
+    workSecondsAccum = 0;
+    breakCount = 0;
+    secondsLeft = settings.work * 60;
+    totalSeconds = secondsLeft;
+    currentSessionId      = String(Date.now());
+    currentSessionRecords = [];
+    unregisteredWorkSecs  = 0;
+    lastRecordEndTime     = new Date();
+    requestNotifPermission();
+    phaseEndTime         = Date.now() + secondsLeft * 1000;
+    phaseCompleting      = false;
+    unregisteredWorkStart = Date.now();
+  }
+  timerState = 'running';
+  document.getElementById('timer-card').classList.add('running');
+  updatePhaseUI();
+  renderControls();
+  intervalId = setInterval(tick, 1000);
+}
+
+function tick() {
+  secondsLeft = Math.max(0, Math.ceil((phaseEndTime - Date.now()) / 1000));
+  if (phase === 'work') unregisteredWorkSecs = Math.round((Date.now() - unregisteredWorkStart) / 1000);
+  if (secondsLeft <= 0) { phaseComplete(); return; }
+  renderTimeDisplay();
+  updateProgressBar();
+  if (phase === 'work') renderUnregisteredTime();
+}
+
+function phaseComplete() {
+  if (phaseCompleting) return;
+  phaseCompleting = true;
+  clearInterval(intervalId);
+
+  if (phase === 'work') {
+    // ── Fi natural d'un pomodoro ──────────────────────────
+    workSecondsAccum += totalSeconds;
+    pomodorosThisSession++;
+    renderPomodorosDots();
+
+    const isLongBreak = pomodorosThisSession % settings.longAfter === 0;
+    pendingBreakDuration = (isLongBreak ? settings.long : settings.short) * 60;
+    pendingBreakIsLong   = isLongBreak;
+
+    timerState = 'idle';
+    document.getElementById('timer-card').classList.remove('running');
+    updatePhaseUI_idle();
+    renderControls();
+
+    playBell();
+
+    const pausaTxt = isLongBreak ? `llarga (${settings.long} min)` : `curta (${settings.short} min)`;
+    notify(`🍅 Pomodoro completat! Pausa ${pausaTxt} a punt.`);
+    sendBrowserNotif("Concentra't", `🍅 Pomodoro completat! Pausa ${pausaTxt}.`);
+
+    if (unregisteredWorkSecs > 0) {
+      // Obre el modal d'activitat; la pausa s'iniciarà en tancar-lo
+      pendingPhaseEnd = true;
+      openActivityModal();
+    } else {
+      afterActivityModal();
+    }
+
+  } else {
+    // ── Fi de pausa → arranca treball automàticament ──────
+    phase            = 'work';
+    workSecondsAccum = 0;
+    breakCount       = 0;
+    secondsLeft      = settings.work * 60;
+    totalSeconds     = secondsLeft;
+    timerState       = 'running';
+    // lastRecordEndTime es reinicia per al nou pomodoro
+    lastRecordEndTime    = new Date();
+    unregisteredWorkSecs = 0;
+    hideMovementReminder();
+
+    document.getElementById('timer-card').classList.add('running');
+    updatePhaseUI();
+    renderTimeDisplay();
+    updateProgressBar();
+    renderUnregisteredTime();
+    // Correcció Bug B: recalcula els controls i els punts de pomodoro
+    renderControls();
+    renderPomodorosDots();
+
+    const msg = '🍅 Hora de treballar! Nova ronda de concentració.';
+    notify(msg);
+    sendBrowserNotif("Concentra't", msg);
+    playBell();
+
+    phaseEndTime          = Date.now() + secondsLeft * 1000;
+    phaseCompleting       = false;
+    unregisteredWorkStart = Date.now();
+    intervalId = setInterval(tick, 1000);
+  }
+}
+
+/** Acció comuna després de tancar el modal d'activitat en fi natural de pomodoro */
+function afterActivityModal() {
+  pendingPhaseEnd = false;
+  showMovementReminder(pendingBreakIsLong);
+  updateDailyGoal();
+  startBreak();
+}
+
+function pauseTimer() {
+  clearInterval(intervalId);
+  timerState = 'paused';
+  if (phase === 'work') workSecondsAccum += (totalSeconds - secondsLeft);
+  totalSeconds = secondsLeft;
+  document.getElementById('timer-card').classList.remove('running');
+  updatePhaseUI();
+  renderControls();
+  notify('⏸ Sessió en pausa.');
+}
+
+function resumeTimer() {
+  timerState = 'running';
+  phaseEndTime = Date.now() + secondsLeft * 1000;
+  if (phase === 'work') unregisteredWorkStart = Date.now() - unregisteredWorkSecs * 1000;
+  document.getElementById('timer-card').classList.add('running');
+  updatePhaseUI();
+  renderControls();
+  intervalId = setInterval(tick, 1000);
+}
+
+function finishTimer() {
+  clearInterval(intervalId);
+  pendingBreakDuration = 0;
+  pendingBreakIsLong   = false;
+
+  if (phase === 'work') {
+    workSecondsAccum += (totalSeconds - secondsLeft);
+  }
+
+  timerState = 'idle';
+  document.getElementById('timer-card').classList.remove('running');
+  updatePhaseUI_idle();
+  renderControls();
+  hideMovementReminder();
+
+  if (unregisteredWorkSecs > 0) {
+    pendingFinishEnd = true;
+    openActivityModal();
+  } else {
+    saveCurrentSession(false);
+  }
+}
+
+// ══════════════════════════════════════════
+//  MODAL D'ACTIVITAT
+// ══════════════════════════════════════════
+
+function openActivityModal() {
+  const now    = new Date();
+  const startT = lastRecordEndTime || sessionStartTime || now;
+  const mins   = Math.round(unregisteredWorkSecs / 60 * 10) / 10;
+
+  const fmt = d => d.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('activity-minutes').textContent =
+    mins === 1 ? '1 min' : `${mins} min`;
+  document.getElementById('activity-time-range').textContent =
+    `(${fmt(startT)} — ${fmt(now)})`;
+
+  // Omple el selector de temes
+  const sel    = document.getElementById('activity-topic-select');
+  const topics = loadTopics();
+  sel.innerHTML = '<option value="">— Selecciona un tema —</option>' +
+    topics.map(t => `<option value="${t.id}">${escHtml(t.name)}</option>`).join('');
+
+  // Omple origens: sistema + usuari
+  const allOrigens  = [...SYSTEM_ORIGENS, ...loadOrigens()];
+  const origenSel   = document.getElementById('activity-origen-selector');
+  origenSel.innerHTML = allOrigens.map(t => `
+    <button type="button" class="origen-toggle" data-origen-id="${t.id}"
+      style="background:${t.color}22;color:${t.color}"
+      onclick="toggleActivityOrigen(this,'${t.color}')">
+      <span class="origen-toggle-dot" style="background:${t.color}"></span>
+      ${escHtml(t.name)}
+    </button>`).join('');
+
+  // Omple etiquetes d'usuari
+  const etiquetes   = loadEtiquetes();
+  const etiquetaSel = document.getElementById('activity-etiqueta-selector');
+  if (!etiquetes.length) {
+    etiquetaSel.innerHTML = '<span style="font-size:0.82rem;color:var(--text3)">Cap etiqueta creada. Crea\'n des de 🏷 Etiquetes.</span>';
+  } else {
+    etiquetaSel.innerHTML = etiquetes.map(t => `
+      <button type="button" class="origen-toggle" data-etiqueta-id="${t.id}"
+        style="background:${t.color}22;color:${t.color}"
+        onclick="toggleActivityEtiqueta(this,'${t.color}')">
+        <span class="origen-toggle-dot" style="background:${t.color}"></span>
+        ${escHtml(t.name)}
+      </button>`).join('');
+  }
+
+  document.getElementById('activity-note').value = '';
+  document.getElementById('activity-note-counter').textContent = '0/200';
+
+  document.getElementById('modal-activity').classList.add('open');
+}
+
+function toggleActivityOrigen(el, color) {
+  el.classList.toggle('selected');
+  el.style.borderColor = el.classList.contains('selected') ? color : 'transparent';
+}
+
+function toggleActivityEtiqueta(el, color) {
+  el.classList.toggle('selected');
+  el.style.borderColor = el.classList.contains('selected') ? color : 'transparent';
+}
+
+function openNewTopicFromActivity() {
+  // Tanca modal-activity temporalment i obre modal-newtopic
+  // Quan es crea el tema, addTopicFromModal() tornarà a modal-activity
+  document.getElementById('modal-activity').classList.remove('open');
+  document.getElementById('quick-topic-name').value = '';
+  document.getElementById('modal-newtopic').classList.add('open');
+}
+
+function saveActivityRecord() {
+  const sel = document.getElementById('activity-topic-select');
+  if (!sel.value) {
+    notify('⚠️ Selecciona un tema per desar el registre.');
+    return;
+  }
+  const topicId   = sel.value;
+  const topicName = sel.options[sel.selectedIndex].text;
+  const origens   = [...document.querySelectorAll('#activity-origen-selector .origen-toggle.selected')]
+    .map(el => el.dataset.origenId);
+  const etiquetes = [...document.querySelectorAll('#activity-etiqueta-selector .origen-toggle.selected')]
+    .map(el => el.dataset.etiquetaId);
+  const note      = document.getElementById('activity-note').value.trim().slice(0, 200);
+  const now       = new Date();
+  const startT    = lastRecordEndTime || sessionStartTime || now;
+  const mins      = Math.round(unregisteredWorkSecs / 60 * 10) / 10;
+
+  const record = {
+    id:        String(Date.now()),
+    sessionId: currentSessionId,
+    topicId,
+    topicName,
+    origens,
+    etiquetes,
+    note,
+    startTime: startT.toISOString(),
+    endTime:   now.toISOString(),
+    minutes:   mins
+  };
+
+  currentSessionRecords.push(record);
+  lastRecordEndTime     = now;
+  unregisteredWorkSecs  = 0;
+  unregisteredWorkStart = Date.now();
+
+  upsertDraftSession();
+
+  document.getElementById('modal-activity').classList.remove('open');
+  renderSessionRecordsList();
+  renderUnregisteredTime();
+  notify('✅ Registre desat.');
+
+  if (pendingPhaseEnd)  { afterActivityModal(); return; }
+  if (pendingFinishEnd) { pendingFinishEnd = false; saveCurrentSession(pendingFinishAndStart); }
+}
+
+function discardActivityRecord() {
+  document.getElementById('modal-activity').classList.remove('open');
+  // No avança lastRecordEndTime — el temps continua acumulant-se
+  if (pendingPhaseEnd)  { afterActivityModal(); return; }
+  if (pendingFinishEnd) { pendingFinishEnd = false; saveCurrentSession(pendingFinishAndStart); }
+}
+
+function saveCurrentSession(andStart) {
+  if (currentSessionRecords.length > 0) {
+    upsertDraftSession();
+    notify('✅ Sessió guardada.');
+  } else {
+    notify('Sessió tancada sense registres.');
+  }
+  updateDailyGoal();
+  resetTimer();
+  if (andStart) setTimeout(() => startTimer(), 200);
+}
+
+function renderUnregisteredTime() {
+  const el = document.getElementById('unregistered-time');
+  if (!el) return;
+  if (timerState === 'idle' || phase !== 'work') { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  const mins = Math.floor(unregisteredWorkSecs / 60);
+  document.getElementById('unreg-label').textContent = `Temps sense registrar: ${mins} min`;
+  el.classList.toggle('urgent', mins >= 20);
+}
+
+function renderSessionRecordsList() {
+  const container = document.getElementById('session-records-list');
+  const body      = document.getElementById('records-list-body');
+  if (!currentSessionRecords.length) {
+    container.classList.remove('visible');
+    return;
+  }
+  container.classList.add('visible');
+  const topics = loadTopics();
+  body.innerHTML = currentSessionRecords.map(r => {
+    const topic = topics.find(t => t.id === r.topicId);
+    const color = topic ? topic.color : '#999';
+    return `<div class="record-item">
+      <div class="record-topic-dot" style="background:${color}"></div>
+      <div class="record-topic-name">${escHtml(r.topicName)}</div>
+      <div class="record-minutes">${r.minutes} min</div>
+    </div>`;
+  }).join('');
+}
+
+function resetTimer() {
+  clearInterval(intervalId);
+  timerState            = 'idle';
+  phase                 = 'work';
+  pomodorosThisSession  = 0;
+  workSecondsAccum      = 0;
+  breakCount            = 0;
+  sessionStartTime      = null;
+  pendingBreakDuration  = 0;
+  pendingBreakIsLong    = false;
+  currentSessionId      = null;
+  currentSessionRecords = [];
+  unregisteredWorkSecs  = 0;
+  lastRecordEndTime     = null;
+  pendingPhaseEnd       = false;
+  pendingFinishEnd      = false;
+  pendingFinishAndStart = false;
+  phaseEndTime          = 0;
+  phaseCompleting       = false;
+  unregisteredWorkStart = null;
+  document.getElementById('timer-card').classList.remove('running');
+  document.getElementById('unregistered-time').style.display = 'none';
+  document.getElementById('session-records-list').classList.remove('visible');
+  document.getElementById('records-list-body').innerHTML = '';
+  hideMovementReminder();
+  renderTimerDisplay_idle();
+  renderControls();
+  renderPomodorosDots();
+  updatePhaseUI_idle();
+}
+
+function renderTimeDisplay() {
+  const m = Math.floor(secondsLeft / 60);
+  const s = secondsLeft % 60;
+  const el = document.getElementById('time-display');
+  el.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  el.className = 'time-display';
+  const pct = secondsLeft / totalSeconds;
+  if (phase === 'work') {
+    if (pct < 0.15) el.classList.add('critical');
+    else if (pct < 0.25) el.classList.add('warning');
+  }
+}
+
+function updateProgressBar() {
+  const prog = 1 - (secondsLeft / totalSeconds);
+  document.getElementById('timer-card').style.setProperty('--progress', prog);
+}
+
+function updatePhaseUI() {
+  const badge = document.getElementById('phase-badge');
+  const lbl   = document.getElementById('phase-label');
+  if (timerState === 'paused') {
+    badge.className = 'phase-badge paused';
+    lbl.textContent = 'En pausa';
+  } else if (phase === 'break') {
+    badge.className = 'phase-badge break';
+    lbl.textContent = 'Descans';
+  } else {
+    badge.className = 'phase-badge';
+    lbl.textContent = 'Treballant';
+  }
+}
+function updatePhaseUI_idle() {
+  document.getElementById('phase-badge').className = 'phase-badge paused';
+  document.getElementById('phase-label').textContent = 'Preparat';
+}
+
+function renderControls() {
+  const ctrl = document.getElementById('timer-controls');
+  if (timerState === 'idle') {
+    ctrl.innerHTML = `<button class="btn-primary" onclick="startTimer()">▶ Inicia la sessió</button>`;
+  } else if (timerState === 'running') {
+    if (phase === 'work') {
+      ctrl.innerHTML = `
+        <button class="btn-secondary" onclick="pauseTimer()">⏸ Pausa</button>
+        <button class="btn-secondary" onclick="openActivityModal()" style="border-color:var(--accent);color:var(--accent)">📝 Registra activitat</button>
+        <button class="btn-danger"    onclick="finishTimer()">⏹ Acaba la sessió</button>`;
+    } else {
+      ctrl.innerHTML = `
+        <button class="btn-secondary" onclick="pauseTimer()">⏸ Pausa</button>
+        <button class="btn-danger"    onclick="finishTimer()">⏹ Acaba la sessió</button>`;
+    }
+  } else {
+    // paused
+    const regBtn = phase === 'work'
+      ? `<button class="btn-secondary" onclick="openActivityModal()" style="border-color:var(--accent);color:var(--accent)">📝 Registra activitat</button>`
+      : '';
+    ctrl.innerHTML = `
+      <button class="btn-primary" onclick="resumeTimer()">▶ Reprén</button>
+      ${regBtn}
+      <button class="btn-danger"  onclick="finishTimer()">⏹ Acaba la sessió</button>`;
+  }
+}
+
+function renderPomodorosDots() {
+  const row   = document.getElementById('pomodoros-row');
+  const total = settings.longAfter;
+  let html = '';
+  for (let i = 0; i < total; i++) {
+    const done = pomodorosThisSession > 0 &&
+      (i < pomodorosThisSession % total ||
+       (pomodorosThisSession % total === 0 && pomodorosThisSession > 0));
+    const curr = !done && i === pomodorosThisSession % total && timerState !== 'idle';
+    if (done) html += `<div class="pom-dot done" title="Pomodoro completat"></div>`;
+    else if (curr) html += `<div class="pom-dot current"></div>`;
+    else html += `<div class="pom-dot"></div>`;
+  }
+  row.innerHTML = html;
+}
+
+
+// ══════════════════════════════════════════
+//  RECORDATORIS DE MOVIMENT
+// ══════════════════════════════════════════
+const MOVEMENTS = [
+  { icon:'🧘', title:'Estira el coll i els muscles', desc:'Gira el cap lentament d\'esquerra a dreta 5 voltes. Eleva els muscles cap amunt i relaxa\'ls.' },
+  { icon:'🚶', title:'Camina una mica', desc:'Aprofita per anar a buscar aigua, pujar o baixar unes escales o fer un volt curt pel passadís.' },
+  { icon:'💪', title:'Estira la part baixa de l\'esquena', desc:'Assegut/da, acosta els genolls al pit alternativament. Repeteix 10 voltes per costat.' },
+  { icon:'👀', title:'Descansa la vista', desc:'Mira per la finestra o un punt llunyà durant 20 segons. Parpelleja unes quantes voltes.' },
+  { icon:'🏃', title:'Puja i baixa escales', desc:'Si tens escales a l\'edifici, puja 2-3 plantes. Activa la circulació i desconnectes mentalment.' },
+  { icon:'🤸', title:'Estira les monyiques i les mans', desc:'Obri i tanca els punys 10 voltes. Gira les monyiques en tots dos sentits. Prevé tensions.' },
+  { icon:'🌬️', title:'Exercici de respiració', desc:'Inspira profundament 4 seg., aguanta 4, expira 6. Repeteix 5 vegades. Redueix l\'estrés.' },
+  { icon:'🧍', title:'Posa\'t dret/a uns minuts', desc:'Treballa dret/a si pots, o simplement alça\'t i estira les cames.' },
+  { icon:'👣', title:'Alça\t de puntetes', desc:'Puja i baixa de puntetes 20 voltes amb les mans a la paret si cal. Previndràs les varius.' },
+  { icon:'💪', title:'Braços en creu', desc:'Braços en creu i palmes cap a l\'exterior. Els dits apunten cap amunt. Estira els braços com si te\'ls arrancaren. Exercici dissenyat per Satanàs, però molt relaxant... després.' },
+];
+
+function showMovementReminder(isLong) {
+  const m = MOVEMENTS[Math.floor(Math.random() * MOVEMENTS.length)];
+  const duration = isLong ? `${settings.long} minuts` : `${settings.short} minuts`;
+  const box = document.getElementById('movement-reminder');
+  box.innerHTML = `
+    <div class="movement-card">
+      <div class="movement-icon">${m.icon}</div>
+      <div class="movement-text">
+        <h4>${m.title} · Tens ${duration}</h4>
+        <p>${m.desc}</p>
+      </div>
+      <button class="btn-movement-done" onclick="hideMovementReminder()">✓ Fet!</button>
+    </div>`;
+  box.style.display = 'block';
+}
+function hideMovementReminder() {
+  const box = document.getElementById('movement-reminder');
+  box.style.display = 'none';
+  box.innerHTML = '';
+}
+
+// ══════════════════════════════════════════
+//  SINCRONITZACIÓ SELECTORS DE TEMA
+// ══════════════════════════════════════════
+function renderTopicSelect() {
+  const topics = loadTopics();
+  // Filtre de temes en estadístiques
+  const ft = document.getElementById('filter-topic');
+  if (ft) {
+    const curFt = ft.value;
+    ft.innerHTML = '<option value="">Tots els temes</option>';
+    topics.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t.id; o.textContent = t.name;
+      if (t.id === curFt) o.selected = true;
+      ft.appendChild(o);
+    });
+  }
+}
+
+// ══════════════════════════════════════════
+//  GESTIÓ DE TEMES
+// ══════════════════════════════════════════
+function renderColorPicker() {
+  document.getElementById('color-picker').innerHTML = COLORS.map(c =>
+    `<div class="color-opt${c === selectedColor ? ' selected' : ''}"
+       style="background:${c}" onclick="selectColor('${c}')" title="${c}"></div>`
+  ).join('');
+}
+
+function selectColor(c) {
+  selectedColor = c;
+  renderColorPicker();
+}
+
+function addTopic() {
+  const input = document.getElementById('new-topic-name');
+  const name  = input.value.trim();
+  if (!name) { notify('Escriu un nom per al tema.'); return; }
+  const topics = loadTopics();
+  if (topics.find(t => t.name.toLowerCase() === name.toLowerCase())) {
+    notify('Ja existeix un tema amb aquest nom.'); return;
+  }
+  topics.push({ id: String(Date.now()), name, color: selectedColor, sessions: 0, minutes: 0 });
+  saveTopics(topics);
+  input.value = '';
+  renderTopics();
+  renderTopicSelect();
+  notify('✅ Tema creat: ' + name);
+}
+
+function addTopicFromModal() {
+  const input = document.getElementById('quick-topic-name');
+  const name  = input.value.trim();
+  if (!name) return;
+  const topics   = loadTopics();
+  const newTopic = { id: String(Date.now()), name, color: COLORS[topics.length % COLORS.length], sessions: 0, minutes: 0 };
+  topics.push(newTopic);
+  saveTopics(topics);
+  input.value = '';
+  closeModal('modal-newtopic');
+  renderTopicSelect();
+  notify('✅ Tema creat: ' + name);
+
+  // Si s'ha obert des del modal d'activitat, torna-hi i selecciona el nou tema
+  if (pendingPhaseEnd || pendingFinishEnd || timerState !== 'idle') {
+    openActivityModal();
+    setTimeout(() => {
+      const sel = document.getElementById('activity-topic-select');
+      if (sel) sel.value = newTopic.id;
+    }, 50);
+  }
+}
+
+function deleteTopic(id) {
+  if (!confirm('Eliminar el tema? Les sessions registrades es conservaran.')) return;
+  saveTopics(loadTopics().filter(t => t.id !== id));
+  renderTopics();
+  renderTopicSelect();
+  notify('Tema eliminat.');
+}
+
+function renderTopics() {
+  const topics = loadTopics();
+  const list   = document.getElementById('topics-list');
+  if (!topics.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🏷</div>
+      <p>No hi ha temes. Crea el primer per a classificar el teu treball.</p></div>`;
+    return;
+  }
+  // Calcula des dels registres reals per evitar divergències i errors de coma flotant
+  const statsMap = {};
+  loadSessions().flatMap(s => s.records || []).forEach(r => {
+    if (!r.topicId) return;
+    if (!statsMap[r.topicId]) statsMap[r.topicId] = { sessions: 0, minutes: 0 };
+    statsMap[r.topicId].sessions++;
+    statsMap[r.topicId].minutes += r.minutes || 0;
+  });
+  list.innerHTML = topics.map(t => {
+    const st   = statsMap[t.id] || { sessions: 0, minutes: 0 };
+    const mins = Math.round(st.minutes * 10) / 10;
+    return `
+    <div class="topic-item">
+      <div class="topic-color-dot" style="background:${t.color}"></div>
+      <div class="topic-name">${escHtml(t.name)}</div>
+      <div class="topic-sessions">${st.sessions} sessions · ${mins} min</div>
+      <button class="topic-del" onclick="deleteTopic('${t.id}')" title="Eliminar tema">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  GESTIÓ D'ORIGENS
+// ══════════════════════════════════════════
+function addOrigen() {
+  const nameEl  = document.getElementById('new-origen-name');
+  const colorEl = document.getElementById('new-origen-color');
+  const name    = nameEl.value.trim();
+  if (!name) { notify('Escriu un nom per a l\'origen.'); return; }
+  // Comprova que no coincideix amb origens de sistema
+  if (SYSTEM_ORIGENS.find(t => t.name.toLowerCase() === name.toLowerCase())) {
+    notify('Aquest nom coincideix amb un origen de sistema.'); return;
+  }
+  const origens = loadOrigens();
+  if (origens.find(t => t.name.toLowerCase() === name.toLowerCase())) {
+    notify('Ja existeix un origen amb aquest nom.'); return;
+  }
+  origens.push({ id: String(Date.now()), name, color: colorEl.value });
+  saveOrigens(origens);
+  nameEl.value = '';
+  renderOrigensList();
+  renderStatsOrigenFilter();
+  notify('🔖 Origen creat: ' + name);
+}
+
+function deleteOrigen(id) {
+  if (!confirm('Eliminar l\'origen? Es desassignarà de tots els registres.')) return;
+  saveOrigens(loadOrigens().filter(t => t.id !== id));
+  // Elimina la referència de tots els registres d'activitat
+  const sessions = loadSessions().map(s => ({
+    ...s,
+    records: (s.records || []).map(r => ({ ...r, origens: (r.origens || []).filter(oid => oid !== id) }))
+  }));
+  saveSessions(sessions);
+  renderOrigensList();
+  renderStatsOrigenFilter();
+  notify('Origen eliminat.');
+}
+
+function renderOrigensList() {
+  const origens  = loadOrigens();
+  const sessions = loadSessions();
+  const list     = document.getElementById('origens-list');
+  const allRecs  = sessions.flatMap(s => s.records || []);
+
+  // Origens de sistema al capdamunt (sense botons d'editar/eliminar)
+  const sysHtml = SYSTEM_ORIGENS.map(t => {
+    const count = allRecs.filter(r => (r.origens || []).includes(t.id)).length;
+    return `
+    <div class="origen-mgmt-item">
+      <div class="origen-mgmt-color" style="background:${t.color}"></div>
+      <div class="origen-mgmt-name">${escHtml(t.name)} <span class="origen-system-badge">🔒</span></div>
+      <div class="origen-mgmt-count">${count} registre${count !== 1 ? 's' : ''}</div>
+    </div>`;
+  }).join('');
+
+  if (!origens.length) {
+    list.innerHTML = sysHtml + `<div style="text-align:center;padding:16px;color:var(--text3);font-size:0.88rem">
+      Cap origen d'usuari creat encara.</div>`;
+    return;
+  }
+  // Compta registres (no sessions) que usen cada origen
+  const userHtml = origens.map(t => {
+    const count = allRecs.filter(r => (r.origens || []).includes(t.id)).length;
+    return `
+      <div class="origen-mgmt-item">
+        <div class="origen-mgmt-color" style="background:${t.color}"></div>
+        <div class="origen-mgmt-name">${escHtml(t.name)}</div>
+        <div class="origen-mgmt-count">${count} registre${count !== 1 ? 's' : ''}</div>
+        <button class="origen-mgmt-del" onclick="deleteOrigen('${t.id}')" title="Eliminar">✕</button>
+      </div>`;
+  }).join('');
+  list.innerHTML = sysHtml + userHtml;
+}
+
+function renderStatsOrigenFilter() {
+  const sel      = document.getElementById('filter-origen');
+  const cur      = sel.value;
+  const origens  = [...SYSTEM_ORIGENS, ...loadOrigens()];
+  sel.innerHTML  = '<option value="">Tots els origens</option>';
+  origens.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t.id; o.textContent = t.name + (t.system ? ' 🔒' : '');
+    if (t.id === cur) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+// ══════════════════════════════════════════
+//  GESTIÓ D'ETIQUETES
+// ══════════════════════════════════════════
+function addEtiqueta() {
+  const nameEl  = document.getElementById('new-etiqueta-name');
+  const colorEl = document.getElementById('new-etiqueta-color');
+  const name    = nameEl.value.trim();
+  if (!name) { notify('Escriu un nom per a l\'etiqueta.'); return; }
+  const etiquetes = loadEtiquetes();
+  if (etiquetes.find(t => t.name.toLowerCase() === name.toLowerCase())) {
+    notify('Ja existeix una etiqueta amb aquest nom.'); return;
+  }
+  etiquetes.push({ id: String(Date.now()), name, color: colorEl.value });
+  saveEtiquetes(etiquetes);
+  nameEl.value = '';
+  renderEtiquetesList();
+  renderStatsEtiquetaFilter();
+  notify('🏷 Etiqueta creada: ' + name);
+}
+
+function deleteEtiqueta(id) {
+  if (!confirm('Eliminar l\'etiqueta? Es desassignarà de tots els registres.')) return;
+  saveEtiquetes(loadEtiquetes().filter(t => t.id !== id));
+  // Elimina la referència de tots els registres d'activitat
+  const sessions = loadSessions().map(s => ({
+    ...s,
+    records: (s.records || []).map(r => ({ ...r, etiquetes: (r.etiquetes || []).filter(eid => eid !== id) }))
+  }));
+  saveSessions(sessions);
+  renderEtiquetesList();
+  renderStatsEtiquetaFilter();
+  notify('Etiqueta eliminada.');
+}
+
+function renderEtiquetesList() {
+  const etiquetes = loadEtiquetes();
+  const sessions  = loadSessions();
+  const list      = document.getElementById('etiquetes-list');
+  if (!etiquetes.length) {
+    list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text3);font-size:0.88rem">
+      Cap etiqueta creada encara.</div>`;
+    return;
+  }
+  const allRecs = sessions.flatMap(s => s.records || []);
+  list.innerHTML = etiquetes.map(t => {
+    const count = allRecs.filter(r => (r.etiquetes || []).includes(t.id)).length;
+    return `
+      <div class="origen-mgmt-item">
+        <div class="origen-mgmt-color" style="background:${t.color}"></div>
+        <div class="origen-mgmt-name">${escHtml(t.name)}</div>
+        <div class="origen-mgmt-count">${count} registre${count !== 1 ? 's' : ''}</div>
+        <button class="origen-mgmt-del" onclick="deleteEtiqueta('${t.id}')" title="Eliminar">✕</button>
+      </div>`;
+  }).join('');
+}
+
+function renderStatsEtiquetaFilter() {
+  const sel       = document.getElementById('filter-etiqueta');
+  const cur       = sel.value;
+  const etiquetes = loadEtiquetes();
+  sel.innerHTML   = '<option value="">Totes les etiquetes</option>';
+  etiquetes.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t.id; o.textContent = t.name;
+    if (t.id === cur) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+// ══════════════════════════════════════════
+//  ESTADÍSTIQUES
+// ══════════════════════════════════════════
+
+/** Retorna array pla d'ActivityRecord filtrats per període, tema, origen i etiqueta */
+function getFilteredRecords() {
+  const period     = document.getElementById('filter-period').value;
+  const topicId    = document.getElementById('filter-topic').value;
+  const origenId   = document.getElementById('filter-origen').value;
+  const etiquetaId = document.getElementById('filter-etiqueta').value;
+  const now        = new Date();
+
+  let startDate = null, endDate = null;
+  if (period === 'week') {
+    startDate = new Date(now);
+    startDate.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    startDate.setHours(0,0,0,0);
+  } else if (period === 'lastweek') {
+    endDate = new Date(now);
+    endDate.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    endDate.setHours(0,0,0,0);
+    startDate = new Date(endDate);
+    startDate.setDate(endDate.getDate() - 7);
+  } else if (period === 'month') {
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  let records = loadSessions().flatMap(s => s.records || []);
+
+  if (startDate)  records = records.filter(r => new Date(r.startTime) >= startDate);
+  if (endDate)    records = records.filter(r => new Date(r.startTime) < endDate);
+  if (topicId)    records = records.filter(r => r.topicId === topicId);
+  if (origenId)   records = records.filter(r => (r.origens || []).includes(origenId));
+  if (etiquetaId) records = records.filter(r => (r.etiquetes || []).includes(etiquetaId));
+
+  return records;
+}
+
+function renderStats() {
+  const records  = getFilteredRecords();
+  const sessions = loadSessions();
+  const totalMin = records.reduce((a, r) => a + (r.minutes || 0), 0);
+  const totalRec = records.length;
+  const avgMin   = totalRec ? Math.round(totalMin / totalRec) : 0;
+
+  document.getElementById('stats-grid').innerHTML = [
+    { val: sessions.length, lbl: 'Sessions' },
+    { val: totalRec,        lbl: 'Registres' },
+    { val: Math.round(totalMin) + 'm', lbl: 'Minuts de concentració' },
+    { val: avgMin + 'm',    lbl: 'Durada mitjana' },
+  ].map(x => `<div class="stat-card"><div class="stat-val">${x.val}</div>
+    <div class="stat-lbl">${x.lbl}</div></div>`).join('');
+
+  renderTopicChart(records);
+  renderOrigenChart(records);
+  renderEtiquetaChart(records);
+  renderWeekGrid();
+  renderSessionsTable(records);
+}
+
+function renderTopicChart(records) {
+  const topics   = loadTopics();
+  const topicMap = {};
+  topics.forEach(t => { topicMap[t.id] = { name: t.name, color: t.color, min: 0, count: 0 }; });
+  records.forEach(r => {
+    if (r.topicId && topicMap[r.topicId]) {
+      topicMap[r.topicId].min   += (r.minutes || 0);
+      topicMap[r.topicId].count++;
+    }
+  });
+  const data   = Object.values(topicMap).filter(x => x.min > 0).sort((a, b) => b.min - a.min);
+  const maxMin = data.length ? data[0].min : 1;
+  const el     = document.getElementById('topic-chart');
+  el.innerHTML = data.length
+    ? data.map(t => barRow(t.name, Math.round(t.min), maxMin, t.color, `${Math.round(t.min)}m · ${t.count}r`)).join('')
+    : '<p style="color:var(--text3);font-size:0.88rem">Cap dada per al filtre seleccionat.</p>';
+}
+
+function renderOrigenChart(records) {
+  const allOrigens = [...SYSTEM_ORIGENS, ...loadOrigens()];
+  const origenMap  = {};
+  allOrigens.forEach(t => { origenMap[t.id] = { name: t.name, color: t.color, min: 0, count: 0 }; });
+  records.forEach(r => {
+    (r.origens || []).forEach(oid => {
+      if (origenMap[oid]) {
+        origenMap[oid].min   += (r.minutes || 0);
+        origenMap[oid].count++;
+      }
+    });
+  });
+  const data   = Object.values(origenMap).filter(x => x.min > 0).sort((a, b) => b.min - a.min);
+  const maxMin = data.length ? data[0].min : 1;
+  const sec    = document.getElementById('origen-chart-section');
+  const el     = document.getElementById('origen-chart');
+  sec.style.display = data.length ? '' : 'none';
+  el.innerHTML = data.map(t => barRow(t.name, Math.round(t.min), maxMin, t.color, `${Math.round(t.min)}m · ${t.count}r`)).join('');
+}
+
+function renderEtiquetaChart(records) {
+  const etiquetes  = loadEtiquetes();
+  const etiquetaMap = {};
+  etiquetes.forEach(t => { etiquetaMap[t.id] = { name: t.name, color: t.color, min: 0, count: 0 }; });
+  records.forEach(r => {
+    (r.etiquetes || []).forEach(eid => {
+      if (etiquetaMap[eid]) {
+        etiquetaMap[eid].min   += (r.minutes || 0);
+        etiquetaMap[eid].count++;
+      }
+    });
+  });
+  const data   = Object.values(etiquetaMap).filter(x => x.min > 0).sort((a, b) => b.min - a.min);
+  const maxMin = data.length ? data[0].min : 1;
+  const sec    = document.getElementById('etiqueta-chart-section');
+  const el     = document.getElementById('etiqueta-chart');
+  sec.style.display = data.length ? '' : 'none';
+  el.innerHTML = data.map(t => barRow(t.name, Math.round(t.min), maxMin, t.color, `${Math.round(t.min)}m · ${t.count}r`)).join('');
+}
+
+function barRow(label, value, max, color, valText) {
+  const pct       = Math.max(3, (value / max) * 100);
+  const isDark    = document.documentElement.dataset.theme === 'dark';
+  const fillAlpha = isDark ? 'BB' : '30';
+  return `
+    <div class="bar-row">
+      <div class="bar-label" title="${escHtml(label)}">${escHtml(label)}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${pct}%;background:${color}${fillAlpha};border-left:3px solid ${color}"></div>
+      </div>
+      <div class="bar-val">${valText}</div>
+    </div>`;
+}
+
+function renderWeekGrid() {
+  const grid     = document.getElementById('week-grid');
+  const dayNames = ['Dl','Dt','Dc','Dj','Dv','Ds','Dg'];
+  const now      = new Date();
+  const todayStr = now.toDateString();
+  const startDay = new Date(now);
+  const dow      = (startDay.getDay() + 6) % 7;
+  startDay.setDate(startDay.getDate() - dow - 7 * 7);
+  startDay.setHours(0, 0, 0, 0);
+
+  const allRecords = loadSessions().flatMap(s => s.records || []);
+  const dayData = {};
+  allRecords.forEach(r => {
+    const dk = new Date(r.startTime).toDateString();
+    dayData[dk] = (dayData[dk] || 0) + (r.minutes || 0);
+  });
+  const maxDay  = Math.max(...Object.values(dayData), 1);
+  const isDark  = document.documentElement.dataset.theme === 'dark';
+
+  // Columna de noms de dia (separada, sense blocs)
+  let html = '<div class="day-col">';
+  dayNames.forEach(n => { html += `<div class="day-name">${n}</div>`; });
+  html += '</div>';
+
+  for (let w = 0; w < 8; w++) {
+    html += '<div class="day-col">';
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(startDay);
+      day.setDate(startDay.getDate() + w * 7 + d);
+      const dk        = day.toDateString();
+      const min       = Math.round(dayData[dk] || 0);
+      const isToday   = dk === todayStr;
+      const intensity = min ? Math.max(0.15, min / maxDay) : 0;
+      const bg        = min ? `rgba(45,80,22,${intensity})` : (isToday ? 'var(--border)' : 'var(--surface2)');
+      const textColor = min
+        ? ((intensity > 0.45 || isDark) ? '#ffffff' : 'var(--accent)')
+        : (isToday ? 'var(--text2)' : 'var(--text3)');
+      const border    = isToday ? `outline:2px solid ${isDark ? '#ffffff' : 'var(--accent)'};outline-offset:-2px;` : '';
+      const lbl       = day.toLocaleDateString('ca-ES', { weekday:'short', day:'numeric', month:'short' });
+      html += `<div class="day-block" style="background:${bg};color:${textColor};${border}"
+        title="${lbl}: ${min} min">${min || ''}</div>`;
+    }
+    html += '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function renderSessionsTable(records) {
+  const topics     = loadTopics();
+  const allOrigens = [...SYSTEM_ORIGENS, ...loadOrigens()];
+  const etiquetes  = loadEtiquetes();
+  const tbody      = document.getElementById('sessions-tbody');
+  const rows       = records.slice().sort((a, b) => (b.startTime || '').localeCompare(a.startTime || '')).slice(0, 60);
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:24px">
+      Cap registre d'activitat.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const d       = new Date(r.startTime);
+    const dateStr = d.toLocaleDateString('ca-ES', { weekday:'short', day:'numeric', month:'short' });
+    const hourStr = d.toLocaleTimeString('ca-ES', { hour:'2-digit', minute:'2-digit' });
+    const topic   = r.topicId ? topics.find(t => t.id === r.topicId) : null;
+    const tColor  = topic ? topic.color : '#999';
+    // Chips d'origen (fons semitransparent)
+    const origenChips = (r.origens || []).map(oid => {
+      const og = allOrigens.find(t => t.id === oid);
+      return og ? `<span class="origen-chip" style="background:${og.color}22;color:${og.color}">
+        <span class="origen-dot" style="background:${og.color}"></span>${escHtml(og.name)}</span>` : '';
+    }).join('');
+    // Chips d'etiqueta (vora puntejada per diferenciar)
+    const etiquetaChips = (r.etiquetes || []).map(eid => {
+      const et = etiquetes.find(t => t.id === eid);
+      return et ? `<span class="etiqueta-chip" style="color:${et.color}">
+        <span class="etiqueta-dot" style="background:${et.color}"></span>${escHtml(et.name)}</span>` : '';
+    }).join('');
+    const allChips = origenChips + etiquetaChips;
+    const noteHtml = r.note
+      ? `<span class="note-cell" title="${escHtml(r.note)}">${escHtml(r.note)}</span>` : '—';
+    return `<tr>
+      <td>${dateStr}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:0.78rem">${hourStr}</td>
+      <td><span class="topic-pill" style="background:${tColor}22;color:${tColor}">● ${escHtml(r.topicName || 'Sense tema')}</span></td>
+      <td style="font-family:'DM Mono',monospace">${r.minutes || 0}</td>
+      <td>${allChips || '—'}</td>
+      <td>${noteHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  EXPORTACIÓ CSV
+// ══════════════════════════════════════════
+function exportCSV() {
+  const sessions   = loadSessions();
+  const allOrigens = [...SYSTEM_ORIGENS, ...loadOrigens()];
+  const etiquetes  = loadEtiquetes();
+  const header     = 'Usuari,ID,SessionID,Data,Hora inici,Hora fi,Tema,Minuts,Origen,Etiquetes,Nota\n';
+  const rows = sessions.flatMap(s =>
+    (s.records || []).map(r => {
+      const dStart = new Date(r.startTime);
+      const dEnd   = new Date(r.endTime);
+      const origenNames = (r.origens || [])
+        .map(oid => { const t = allOrigens.find(x => x.id === oid); return t ? t.name : ''; })
+        .filter(Boolean).join(';');
+      const etiquetaNames = (r.etiquetes || [])
+        .map(eid => { const t = etiquetes.find(x => x.id === eid); return t ? t.name : ''; })
+        .filter(Boolean).join(';');
+      return [
+        '"' + PROFILE.replace(/"/g, '""') + '"',
+        r.id,
+        r.sessionId,
+        dStart.toLocaleDateString('ca-ES'),
+        dStart.toLocaleTimeString('ca-ES', { hour:'2-digit', minute:'2-digit' }),
+        dEnd.toLocaleTimeString('ca-ES',   { hour:'2-digit', minute:'2-digit' }),
+        '"' + (r.topicName || 'Sense tema').replace(/"/g, '""') + '"',
+        r.minutes || 0,
+        '"' + origenNames.replace(/"/g, '""') + '"',
+        '"' + etiquetaNames.replace(/"/g, '""') + '"',
+        '"' + ((r.note || '').replace(/"/g, '""')) + '"'
+      ].join(',');
+    })
+  ).join('\n');
+  downloadBlob('﻿' + header + rows, 'text/csv;charset=utf-8',
+    `concentrat-${PROFILE}-registres-` + isoDate() + '.csv');
+  notify('📥 CSV exportat correctament.');
+}
+
+// ══════════════════════════════════════════
+//  EXPORTACIÓ JSON
+// ══════════════════════════════════════════
+function exportJSON() {
+  const data = {
+    version: 4,
+    exportDate: new Date().toISOString(),
+    user:      PROFILE,
+    settings:  loadSettings(),
+    topics:    loadTopics(),
+    origens:   loadOrigens(),
+    etiquetes: loadEtiquetes(),
+    sessions:  loadSessions()
+  };
+  downloadBlob(JSON.stringify(data, null, 2), 'application/json',
+    `concentrat-${PROFILE}-backup-` + isoDate() + '.json');
+  notify('📦 Backup JSON exportat correctament.');
+}
+
+// ══════════════════════════════════════════
+//  IMPORTACIÓ JSON
+// ══════════════════════════════════════════
+let importData = null;
+
+function openImportModal() {
+  clearImport();
+  openModal('modal-import');
+}
+
+function clearImport() {
+  importData = null;
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('import-summary').classList.remove('visible');
+  document.getElementById('import-summary').innerHTML = '';
+  document.getElementById('btn-confirm-import').disabled = true;
+}
+
+function handleImportFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!validateImportData(data)) {
+        notify('⚠️ Fitxer invàlid o incompatible.');
+        clearImport();
+        return;
+      }
+      importData = data;
+      const summary = document.getElementById('import-summary');
+      summary.innerHTML = `
+        <div class="import-summary-row">✅ Fitxer llegit correctament</div>
+        <div class="import-summary-row">📅 Exportat el: <strong>${new Date(data.exportDate).toLocaleDateString('ca-ES')}</strong></div>
+        <div class="import-summary-row">📦 Sessions: <strong>${(data.sessions || []).length}</strong> &nbsp;·&nbsp; Temes: <strong>${(data.topics || []).length}</strong> &nbsp;·&nbsp; Origens: <strong>${(data.origens || data.tags || []).length}</strong> &nbsp;·&nbsp; Etiquetes: <strong>${(data.etiquetes || []).length}</strong></div>`;
+      summary.classList.add('visible');
+      document.getElementById('btn-confirm-import').disabled = false;
+    } catch {
+      notify('⚠️ Error llegint el fitxer. Assegura\'t que és un JSON vàlid.');
+      clearImport();
+    }
+  };
+  reader.readAsText(file);
+}
+
+function validateImportData(data) {
+  return data && typeof data === 'object' &&
+    Array.isArray(data.sessions) &&
+    data.sessions.every(s => s.id && s.date);
+}
+
+function confirmImport() {
+  if (!importData) return;
+  const mode = document.querySelector('input[name="import-mode"]:checked').value;
+
+  // Migra sessions de format antic si cal
+  const importSessions = (importData.sessions || []).map(migrateSessionFormat);
+
+  if (mode === 'replace') {
+    if (!confirm('Substituiràs TOTES les dades actuals. Aquesta acció no es pot desfer. Continuar?')) return;
+    saveSessions(importSessions);
+    saveTopics(importData.topics || []);
+    saveOrigens(importData.origens || importData.tags || []);
+    saveEtiquetes(importData.etiquetes || []);
+    if (importData.settings) saveSettings({ ...loadSettings(), ...importData.settings });
+    notify(`✅ Dades substituïdes: ${importSessions.length} sessions.`);
+  } else {
+    const exSessions  = new Set(loadSessions().map(s => String(s.id)));
+    const exTopics    = new Set(loadTopics().map(t => String(t.id)));
+    const exOrigens   = new Set(loadOrigens().map(t => String(t.id)));
+    const exEtiquetes = new Set(loadEtiquetes().map(t => String(t.id)));
+
+    const newSessions  = importSessions.filter(s => !exSessions.has(String(s.id)));
+    const newTopics    = (importData.topics  || []).filter(t => !exTopics.has(String(t.id)));
+    const newOrigens   = (importData.origens || importData.tags || []).filter(t => !exOrigens.has(String(t.id)));
+    const newEtiquetes = (importData.etiquetes || []).filter(t => !exEtiquetes.has(String(t.id)));
+
+    saveSessions([...newSessions, ...loadSessions()]);
+    saveTopics([...loadTopics(), ...newTopics]);
+    saveOrigens([...loadOrigens(), ...newOrigens]);
+    saveEtiquetes([...loadEtiquetes(), ...newEtiquetes]);
+
+    notify(`✅ Fusió completada: +${newSessions.length} sessions, +${newTopics.length} temes, +${newOrigens.length} origens, +${newEtiquetes.length} etiquetes.`);
+  }
+
+  closeModal('modal-import');
+  clearImport();
+  renderTopicSelect();
+  renderStatsOrigenFilter();
+  renderStatsEtiquetaFilter();
+  updateDailyGoal();
+  if (document.getElementById('view-stats').classList.contains('visible')) renderStats();
+}
+
+// ══════════════════════════════════════════
+//  SO DE CAMPANA (Web Audio API)
+// ══════════════════════════════════════════
+function playBell() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    // Harmònics d'una campana (fonamental + 2ª + 3ª + 5ª)
+    // Cada harmònic té un volum i una decaiguda pròpies
+    const harmonics = [
+      { freq: 523.25, vol: 0.50, decay: 2.0 },  // C5 — fonamental
+      { freq: 1046.5, vol: 0.28, decay: 1.4 },  // C6
+      { freq: 1568.0, vol: 0.14, decay: 1.0 },  // G6
+      { freq: 2093.0, vol: 0.08, decay: 0.7 },  // C7
+    ];
+    harmonics.forEach(({ freq, vol, decay }) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      // Atac ràpid (10 ms) + decaiguda exponencial
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(vol, now + 0.010);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + decay);
+      osc.start(now);
+      osc.stop(now + decay);
+    });
+  } catch (e) {
+    // Entorn sense Web Audio (ex. alguns iOS en segon pla)
+    console.warn("playBell:", e);
+  }
+}
+
+// ══════════════════════════════════════════
+//  INICI DE PAUSA AUTOMÀTICA
+// ══════════════════════════════════════════
+/** Inicia la pausa que estava pendent.
+ *  Guarda: si el modal d'activitat és obert, no iniciem cap fase nova */
+function startBreak() {
+  if (document.getElementById('modal-activity').classList.contains('open')) return;
+  if (pendingBreakDuration <= 0) { resetTimer(); return; }
+
+  phase        = 'break';
+  timerState   = 'running';
+  secondsLeft  = pendingBreakDuration;
+  totalSeconds = pendingBreakDuration;
+  breakCount++;
+  workSecondsAccum     = 0;
+  unregisteredWorkSecs = 0;
+  pendingBreakDuration = 0;
+  pendingBreakIsLong   = false;
+
+  document.getElementById('timer-card').classList.add('running');
+  document.getElementById('unregistered-time').style.display = 'none';
+  updatePhaseUI();
+  renderControls();
+  renderTimeDisplay();
+  updateProgressBar();
+  phaseEndTime          = Date.now() + secondsLeft * 1000;
+  phaseCompleting       = false;
+  unregisteredWorkStart = Date.now();
+  intervalId = setInterval(tick, 1000);
+}
+
+// ══════════════════════════════════════════
+//  BOTONS DINÀMICS DEL MODAL DE FI
+// ══════════════════════════════════════════
+//  NOTIFICACIONS NATIVES
+// ══════════════════════════════════════════
+function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'default') return;
+  if (localStorage.getItem('concentrat_notif_asked')) return;
+  localStorage.setItem('concentrat_notif_asked', '1');
+  Notification.requestPermission();
+}
+
+function sendBrowserNotif(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '' });
+  }
+}
+
+// ══════════════════════════════════════════
+//  HELPERS DE MODAL
+// ══════════════════════════════════════════
+function openModal(id) {
+  const overlay = document.getElementById(id);
+  overlay.classList.add('open');
+  if (id === 'modal-origens')    renderOrigensList();
+  if (id === 'modal-etiquetes')  renderEtiquetesList();
+  if (id === 'modal-appearance') renderThemeGrid();
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// ══════════════════════════════════════════
+//  NOTIFICACIÓ TOAST
+// ══════════════════════════════════════════
+let notifTimeout = null;
+function notify(msg) {
+  const el = document.getElementById('notification');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (notifTimeout) clearTimeout(notifTimeout);
+  notifTimeout = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ══════════════════════════════════════════
+//  UTILITATS
+// ══════════════════════════════════════════
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function isoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function downloadBlob(content, type, filename) {
+  const blob = new Blob([content], { type });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+// ══════════════════════════════════════════
+//  INICIALITZACIÓ
+// ══════════════════════════════════════════
+
+// Orígens d'usuari per defecte (injectats si el perfil no en té cap)
+const DEFAULT_ORIGENS = [
+  { name: 'WhatsApp', color: '#25D366' },
+  { name: 'Teams', color: '##1E1F1E' },
+];
+
+/** Inicialitza tots els components de l'app un cop el perfil és conegut */
+function bootApp() {
+  // Migra la clau _tags a _origens si cal
+  migrateLSTagsToOrigens();
+  // Injecta origens d'usuari per defecte si el perfil no en té cap
+  if (!loadOrigens().length) {
+    saveOrigens(DEFAULT_ORIGENS.map(t => ({ id: String(Date.now() + Math.random()), name: t.name, color: t.color })));
+  }
+  settings = loadSettings();
+  loadSettingsUI();
+  renderColorPicker();
+  renderTopicSelect();
+  renderStatsOrigenFilter();
+  renderStatsEtiquetaFilter();
+  renderPomodorosDots();
+  renderTimerDisplay_idle();
+  renderControls();
+  updatePhaseUI_idle();
+  updateDailyGoal();
+}
+
+(function init() {
+  // 1. Aplica tema guardat (abans de mostrar res)
+  const savedTheme = localStorage.getItem(KEY_THEME) || 'default';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+
+  // 2. Registra listeners globals (independents del perfil)
+  document.querySelectorAll('.modal-overlay:not(#modal-activity)').forEach(o => {
+    o.addEventListener('click', e => {
+      if (e.target === o) o.classList.remove('open');
+    });
+  });
+  document.getElementById('quick-topic-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addTopicFromModal();
+  });
+  document.getElementById('new-origen-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addOrigen();
+  });
+  document.getElementById('new-etiqueta-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addEtiqueta();
+  });
+
+  // 3. Comprova si ja existeix un perfil creat
+  const profiles = loadProfiles();
+  if (!profiles.length) {
+    // Cap perfil → mostra la pantalla d'onboarding (bloqueja l'app)
+    showOnboarding();
+    return;
+  }
+
+  // 4. Recupera el perfil actiu (el primer de la llista si el guardat no existeix)
+  const saved = localStorage.getItem(KEY_ACTIVE);
+  PROFILE = (saved && profiles.includes(saved)) ? saved : profiles[0];
+  localStorage.setItem(KEY_ACTIVE, PROFILE);
+
+  // 5. Amaga l'onboarding i arrenca l'app
+  document.getElementById('onboarding').classList.add('hidden');
+  bootApp();
+})();
+</script>
+</body>
+</html>
